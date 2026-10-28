@@ -1,0 +1,24 @@
+version: '3.9'
+services:
+  arc-verify-web:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - AI_SERVICE_URL=http://arc-verify-ai:8000
+      - ARC_VERIFY_SESSION_SECRET=${ARC_VERIFY_SESSION_SECRET:-gov-meghraj-hmac-secret-key-2026}
+    volumes:
+      - arc_verify_data:/app/.arc-verify-data
+    depends_on:
+      - arc-verify-ai
+    restart: unless-stopped
+
+  arc-verify-ai:
+    build: ./ai-service
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+
+volumes:
+  arc_verify_data:
