@@ -15,7 +15,7 @@ import {
   KeyRound
 } from 'lucide-react';
 import { Role, PermissionKey } from '@/types';
-import { ALL_PERMISSIONS } from '@/lib/mock-data';
+import { ALL_PERMISSIONS } from '@/lib/permissions';
 
 export default function PermissionsPage() {
   const [roles, setRoles] = useState<Role[]>([]);

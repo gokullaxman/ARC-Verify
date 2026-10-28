@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { dbStore } from '@/lib/store';
 import { cookies } from 'next/headers';
-import { sanitizeUser } from '@/lib/password';
+import { dbService } from '@/lib/db';
+import { verifyPassword } from '@/lib/password';
+import { sanitizeUser } from '@/lib/guard';
 import {
   SESSION_COOKIE_NAME,
   signSessionToken,
@@ -10,16 +11,34 @@ import {
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
+    const clientIp =
+      req.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
+      req.headers.get('x-real-ip') ||
+      '127.0.0.1';
+
+    // Rate limit per IP
+    const ipLimit = dbService.checkRateLimit(`ip:${clientIp}`, 15, 60);
+    if (!ipLimit.allowed) {
+      return NextResponse.json(
+        {
+          success: false,
+          errorCode: 'TOO_MANY_REQUESTS',
+          message: 'Too many authentication attempts. Please try again after 1 minute.',
+        },
+        { status: 429 }
+      );
+    }
+
+    const body = await req.json().catch(() => ({}));
     const { email, password, role, userId } = body || {};
 
-    // Strictly reject passwordless login-by-role or login-by-userId
+    // Reject passwordless login attempts
     if ((role || userId) && (!email || !password)) {
       return NextResponse.json(
         {
           success: false,
           errorCode: 'PASSWORD_REQUIRED',
-          message: 'Passwordless login by role or userId is disabled. Both email and password are required.',
+          message: 'Passwordless login is disabled. Both email and password are required.',
         },
         { status: 400 }
       );
@@ -36,20 +55,25 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const existingUser = dbStore.getUserByEmail(email.trim());
-    if (existingUser && existingUser.status === 'INACTIVE') {
+    const cleanEmail = email.trim().toLowerCase();
+
+    // Rate limit per email
+    const emailLimit = dbService.checkRateLimit(`email:${cleanEmail}`, 5, 60);
+    if (!emailLimit.allowed) {
       return NextResponse.json(
         {
           success: false,
-          errorCode: 'ACCOUNT_INACTIVE',
-          message: 'Your account is deactivated. Contact System Administrator.',
+          errorCode: 'TOO_MANY_REQUESTS',
+          message: 'Too many failed login attempts for this account. Please wait 1 minute before retrying.',
         },
-        { status: 403 }
+        { status: 429 }
       );
     }
 
-    const user = dbStore.authenticate(email.trim(), password);
-    if (!user) {
+    const user = dbService.getUserByEmail(cleanEmail);
+
+    // Return single generic error for unknown, inactive, or incorrect password accounts
+    if (!user || user.status === 'INACTIVE' || !user.passwordHash || !verifyPassword(password, user.passwordHash)) {
       return NextResponse.json(
         {
           success: false,
@@ -60,18 +84,25 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Issue signed session token with jti tracked in DB
     const signedToken = signSessionToken({ id: user.id, role: user.role });
     const cookieStore = await cookies();
     cookieStore.set(SESSION_COOKIE_NAME, signedToken, getSessionCookieOptions());
     cookieStore.delete('sih_user_id');
     cookieStore.delete('sih_user_role');
 
-    dbStore.addAuditLog({
-      userId: user.id,
-      userName: user.name,
-      userRole: user.role,
+    // Update lastLogin
+    dbService.updateUser(user.id, { lastLogin: new Date().toISOString() });
+
+    // Append audit event server-side
+    dbService.appendAuditEvent({
+      actorId: user.id,
+      actorName: user.name,
+      actorRole: user.role,
       action: 'LOGIN_SUCCESS',
-      details: `Authenticated login via verified password hash and signed httpOnly session for ${user.name} (${user.role}).`,
+      entityType: 'User',
+      entityId: user.id,
+      reason: `Authenticated login via verified scrypt password hash and signed session for ${user.name} (${user.role}).`,
     });
 
     return NextResponse.json({
@@ -79,9 +110,14 @@ export async function POST(req: NextRequest) {
       data: sanitizeUser(user),
       message: 'Login successful',
     });
-  } catch (error: any) {
+  } catch (error) {
+    console.error('[Login Error]:', error);
     return NextResponse.json(
-      { success: false, message: error.message || 'Internal server error' },
+      {
+        success: false,
+        errorCode: 'INTERNAL_ERROR',
+        message: 'An unexpected internal error occurred during authentication.',
+      },
       { status: 500 }
     );
   }

@@ -18,30 +18,30 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { DEMO_USERS } from '@/lib/mock-data';
 import { hasPermission } from '@/lib/auth';
+import { User } from '@/types';
 
 interface SidebarProps {
-  currentUser?: any;
+  currentUser?: User | null;
   onSwitchUser?: (userId: string) => void;
   isOpen?: boolean;
   onClose?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
-  currentUser = DEMO_USERS[0],
+  currentUser = null,
   onSwitchUser,
   isOpen = false,
-  onClose
+  onClose,
 }) => {
   const pathname = usePathname();
 
   const navItems = [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-    { name: 'Application Dossiers', href: '/cases', icon: FolderKanban, badge: '4', badgeColor: 'bg-indigo-100 text-indigo-800', permission: 'RECORD_VIEW' },
-    { name: 'Document Intake & OCR', href: '/documents/upload', icon: FileText, permission: 'DOCUMENT_VIEW' },
-    { name: 'Scrutiny Workbench', href: '/verification', icon: CheckSquare, badge: '3', badgeColor: 'bg-amber-100 text-amber-800', permission: 'VERIFICATION_VIEW' },
-    { name: 'Regulatory Rule Sets', href: '/rules', icon: Scale, badge: 'COMP-12', badgeColor: 'bg-emerald-100 text-emerald-800', permission: 'RECORD_VIEW' },
+    { name: 'Application Dossiers', href: '/cases', icon: FolderKanban, badge: '4', badgeColor: 'bg-indigo-100 text-indigo-800', permission: 'CASE_VIEW' },
+    { name: 'Document Intake & OCR', href: '/documents/upload', icon: FileText, permission: 'DOCUMENT_UPLOAD' },
+    { name: 'Scrutiny Workbench', href: '/verification', icon: CheckSquare, badge: 'AICTE', badgeColor: 'bg-amber-100 text-amber-800', permission: 'CASE_REVIEW' },
+    { name: 'Regulatory Rule Sets', href: '/rules', icon: Scale, badge: 'COMP-12', badgeColor: 'bg-emerald-100 text-emerald-800', permission: 'RULE_VIEW' },
     { name: 'Audit Hash Ledger', href: '/audit', icon: History, permission: 'AUDIT_VIEW' },
     { name: 'Assurance Analytics', href: '/analytics', icon: BarChart3, permission: 'ANALYTICS_VIEW' },
     { name: 'Users & Officers', href: '/users', icon: Users, permission: 'USER_VIEW' },
@@ -93,17 +93,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
             {onClose && (
               <button
                 onClick={onClose}
-                className="lg:hidden p-1.5 text-slate-400 hover:text-white rounded-md hover:bg-slate-800 transition"
+                className="lg:hidden p-1.5 text-slate-400 hover:text-white rounded-md hover:bg-slate-800 transition cursor-pointer"
                 title="Close Navigation"
               >
                 <span className="text-lg font-bold leading-none">&times;</span>
               </button>
             )}
-          </div>
-
-          <div className="mt-3 text-[10px] px-2.5 py-1 bg-amber-950/50 border border-amber-800/60 rounded text-amber-300 flex items-center gap-1.5 font-mono">
-            <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
-            <span>GIGW 3.0 • NIC MEGHRAJ READY</span>
           </div>
         </div>
 
@@ -122,7 +117,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 className={cn(
                   'flex items-center justify-between px-3 py-2 rounded-md text-xs font-medium transition-colors',
                   isActive
-                    ? 'bg-slate-800 text-white font-semibold border-l-4 border-indigo-500 shadow-sm'
+                    ? 'bg-slate-800 text-white font-semibold border-l-4 border-indigo-500 shadow-xs'
                     : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
                 )}
               >
@@ -144,29 +139,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-mono text-slate-400 uppercase">Active Role Session</span>
             <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-950 text-indigo-300 border border-indigo-800 font-mono">
-              {currentUser?.role?.replace('_', ' ')}
+              {currentUser?.role ? currentUser.role.replace(/_/g, ' ') : 'AUTHENTICATING'}
             </span>
           </div>
 
-          {onSwitchUser && (
-            <div>
-              <select
-                value={currentUser?.id || DEMO_USERS[0].id}
-                onChange={(e) => onSwitchUser(e.target.value)}
-                className="w-full bg-slate-900 border border-slate-700 text-slate-300 text-xs rounded px-2 py-1.5 focus:outline-none focus:border-indigo-500"
-              >
-                {DEMO_USERS.map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.role.replace('_', ' ')}: {u.name.split(',')[0].slice(0, 20)}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-
           <div className="flex items-center justify-between pt-1 text-[11px] text-slate-400 font-mono">
             <span className="truncate">Domain:</span>
-            <span className="text-slate-200 font-bold truncate max-w-[130px]">AICTE 2024–27 + Generic</span>
+            <span className="text-slate-200 font-bold truncate max-w-[130px]">AICTE 2024–27</span>
           </div>
         </div>
       </aside>

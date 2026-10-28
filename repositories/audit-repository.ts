@@ -1,15 +1,12 @@
 /**
- * Repository: Audit Repository — Append-only SHA-256 hash chain for tamper-evident audit events.
+ * Repository: Audit Repository — Append-only HMAC-SHA256 hash chain for tamper-evident audit events.
+ * Key outside the DB (AUDIT_KEY).
  *
- * Used by:
- *  - repositories/dossier-repository.ts (AuditRepository)
- *  - app/api/cases/route.ts (appendEvent)
- *  - app/api/cases/[id]/route.ts (listEvents)
- *  - app/api/cases/[id]/documents/route.ts (appendEvent)
- *  - tests/arc_verify_audit_remediation.test.ts (verifyChainIntegrity)
+ * Payload: [prev, id, ts, caseId, actorId, actorRole, action, entityType, entityId, reason]
  */
 
 import crypto from 'crypto';
+import { AUDIT_KEY } from '@/lib/env';
 
 export interface AuditEventInput {
   caseId?: string;
@@ -20,6 +17,7 @@ export interface AuditEventInput {
   entityType: string;
   entityId: string;
   reasonOrSummary: string;
+  details?: any;
 }
 
 export interface AuditEvent extends AuditEventInput {
@@ -32,11 +30,6 @@ export interface AuditEvent extends AuditEventInput {
   eventHash: string;
 }
 
-/**
- * Append-only audit log with SHA-256 hash chain.
- * Each event's `eventHash` = SHA-256(`previousHash` + `id` + `timestamp` + `action` + `entityId`).
- * Tampering with or reordering any event breaks the chain.
- */
 export class AuditRepository {
   private events: AuditEvent[] = [];
 
@@ -52,9 +45,22 @@ export class AuditRepository {
     const timestamp = new Date().toISOString();
     const sequenceNumber = this.events.length + 1;
 
-    const hashPayload = `${previousHash}|${id}|${timestamp}|${input.action}|${input.entityId}`;
+    // Canonical payload: [prev, id, ts, caseId, actorId, actorRole, action, entityType, entityId, reason]
+    const hashPayload = [
+      previousHash,
+      id,
+      timestamp,
+      input.caseId || '',
+      input.actorId,
+      input.actorRole,
+      input.action,
+      input.entityType,
+      input.entityId,
+      input.reasonOrSummary,
+    ].join('|');
+
     const eventHash = crypto
-      .createHash('sha256')
+      .createHmac('sha256', AUDIT_KEY)
       .update(hashPayload)
       .digest('hex');
 
@@ -110,7 +116,7 @@ export class AuditRepository {
   }
 
   /**
-   * Verifies the integrity of the entire hash chain.
+   * Verifies the integrity of the entire hash chain using HMAC-SHA256 and AUDIT_KEY.
    * Returns { valid: true } if no tampering detected, or
    * { valid: false, brokenAtIndex, expectedHash, actualHash } on the first break.
    */
@@ -140,9 +146,22 @@ export class AuditRepository {
         };
       }
 
-      const recomputedPayload = `${event.previousHash}|${event.id}|${event.timestamp}|${event.action}|${event.entityId}`;
+      // Recompute HMAC payload: [prev, id, ts, caseId, actorId, actorRole, action, entityType, entityId, reason]
+      const recomputedPayload = [
+        event.previousHash,
+        event.id,
+        event.timestamp || event.timestampUtc,
+        event.caseId || '',
+        event.actorId,
+        event.actorRole,
+        event.action,
+        event.entityType,
+        event.entityId,
+        event.reasonOrSummary,
+      ].join('|');
+
       const recomputedHash = crypto
-        .createHash('sha256')
+        .createHmac('sha256', AUDIT_KEY)
         .update(recomputedPayload)
         .digest('hex');
 

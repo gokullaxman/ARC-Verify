@@ -321,7 +321,7 @@ export default function CaseDetailPage() {
                           row.supportingDocuments.map((sd: any, i: number) => (
                             <div key={i} className="text-[11px] font-mono flex items-center gap-2">
                               <span className="font-semibold text-indigo-700">{sd.documentName} (p.{sd.pageNumber}):</span>
-                              <span>"{sd.extractedValue}"</span>
+                              <span>&quot;{sd.extractedValue}&quot;</span>
                               <span className="px-1.5 py-0.5 rounded bg-slate-100 border border-slate-300">
                                 {Math.round(sd.similarity * 100)}% ({sd.matchStatus})
                               </span>

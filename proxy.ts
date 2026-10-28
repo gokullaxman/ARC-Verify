@@ -1,15 +1,8 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { SESSION_SECRET } from '@/lib/env';
 
 const SESSION_COOKIE_NAME = 'arc_verify_session';
-
-function getSessionSecret(): string {
-  return (
-    process.env.ARC_VERIFY_SESSION_SECRET ||
-    process.env.NEXTAUTH_SECRET ||
-    'arc-verify-sih-26261-hmac-sha256-session-secret-key-2026'
-  );
-}
 
 function base64UrlToUint8Array(base64Url: string): Uint8Array {
   const padding = '='.repeat((4 - (base64Url.length % 4)) % 4);
@@ -33,7 +26,7 @@ async function verifySignedCookieEdge(token: string | undefined): Promise<{ uid:
     const encoder = new TextEncoder();
     const key = await crypto.subtle.importKey(
       'raw',
-      encoder.encode(getSessionSecret()),
+      encoder.encode(SESSION_SECRET),
       { name: 'HMAC', hash: 'SHA-256' },
       false,
       ['verify']
@@ -60,7 +53,7 @@ async function verifySignedCookieEdge(token: string | undefined): Promise<{ uid:
   }
 }
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const rawToken = request.cookies.get(SESSION_COOKIE_NAME)?.value;
   const session = await verifySignedCookieEdge(rawToken);
@@ -99,8 +92,8 @@ export async function middleware(request: NextRequest) {
   return NextResponse.next();
 }
 
+export const middleware = proxy;
+
 export const config = {
-  matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|.*\.(?:jpg|jpeg|png|webp|svg|gif)).*)',
-  ],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|.*\\.(?:jpg|jpeg|png|webp|svg|gif)$).*)'],
 };

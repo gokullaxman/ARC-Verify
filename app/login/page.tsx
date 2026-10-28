@@ -10,30 +10,53 @@ import {
   ArrowRight,
   CheckCircle2,
   AlertCircle,
-  Users,
-  FileCheck,
-  Eye,
-  FileSpreadsheet,
-  Landmark,
-  Compass,
+  ShieldCheck,
+  Building2,
+  UserCheck,
+  User,
 } from 'lucide-react';
-import { DEMO_USERS } from '@/lib/mock-data';
 
-const DEMO_ACCOUNT_PASSWORDS: Record<string, string> = {
-  'superadmin@example.com': 'SuperAdmin@123',
-  'admin@example.com': 'Admin@123',
-  'officer@example.com': 'Officer@123',
-  'verifier@example.com': 'Verifier@123',
-  'operator@example.com': 'Operator@123',
-  'gis@example.com': 'Gis@123',
-  'auditor@example.com': 'Auditor@123',
-  'viewer@example.com': 'Viewer@123',
-};
+const DEMO_PRESETS = [
+  {
+    role: 'SUPER_ADMIN',
+    label: 'Super Admin',
+    name: 'Dr. Amitabh K. Sharma',
+    email: 'superadmin@example.com',
+    password: 'SuperAdmin@123',
+    icon: Shield,
+  },
+  {
+    role: 'SCRUTINY_OFFICER',
+    label: 'Scrutiny Officer',
+    name: 'Dr. M. S. Sundaram',
+    email: 'officer@example.com',
+    password: 'Officer@123',
+    icon: UserCheck,
+  },
+  {
+    role: 'COMPLIANCE_AUDITOR',
+    label: 'Forensic Auditor',
+    name: 'Vikramaditya Bose',
+    email: 'auditor@example.com',
+    password: 'Auditor@123',
+    icon: KeyRound,
+  },
+  {
+    role: 'APPLICANT',
+    label: 'College Applicant',
+    name: 'Rajesh G. Kulkarni',
+    email: 'operator@example.com',
+    password: 'Operator@123',
+    icon: Building2,
+  },
+];
 
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState('officer@example.com');
-  const [password, setPassword] = useState('Officer@123');
+  const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === 'true';
+
+  const [email, setEmail] = useState(isDemoMode ? 'officer@example.com' : '');
+  const [password, setPassword] = useState(isDemoMode ? 'Officer@123' : '');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -68,84 +91,62 @@ export default function LoginPage() {
     await submitCredentials(email, password);
   };
 
-  const handleFillDemoAccount = (user: (typeof DEMO_USERS)[0]) => {
-    const pwd = DEMO_ACCOUNT_PASSWORDS[user.email.toLowerCase()] || '';
-    setEmail(user.email);
-    setPassword(pwd);
-    setError(null);
-  };
-
-  const roleIcons: Record<string, any> = {
-    SUPER_ADMIN: Shield,
-    ADMIN: Landmark,
-    REVENUE_OFFICER: FileSpreadsheet,
-    VERIFICATION_OFFICER: FileCheck,
-    DATA_ENTRY_OPERATOR: Users,
-    GIS_OFFICER: Compass,
-    AUDITOR: KeyRound,
-    VIEWER: Eye,
-  };
-
   return (
     <div className="min-h-screen bg-slate-100 flex flex-col justify-between text-slate-800">
-      <div className="bg-white border-b border-slate-200 shadow-xs">
+      <div className="bg-white border-b border-slate-200 shadow-2xs">
         <div className="h-1.5 bg-gradient-to-r from-indigo-600 via-sky-500 to-emerald-600"></div>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="relative w-11 h-11 rounded-xl overflow-hidden border-2 border-indigo-500 shadow flex-shrink-0 bg-slate-950 flex items-center justify-center text-white font-mono font-bold text-sm">
-              AV
+            <div className="w-11 h-11 rounded-xl border-2 border-indigo-500 shadow-xs flex-shrink-0 bg-slate-950 flex items-center justify-center text-white font-mono font-bold text-sm">
+              <ShieldCheck className="w-6 h-6 text-indigo-400" />
             </div>
             <div>
               <div className="text-xs font-bold text-indigo-700 uppercase tracking-wider font-mono">
                 SIH 2026 • Problem Statement 26261
               </div>
-              <div className="text-sm sm:text-base font-bold text-slate-900 leading-tight">
-                ARC-Verify — Regulatory Dossier &amp; Compliance Assurance Workbench
+              <div className="text-base font-bold text-slate-900 tracking-tight">
+                ARC-Verify Platform
               </div>
-              <div className="text-[11px] text-slate-500 font-medium">
-                Signed HttpOnly Session Gateway • Scrypt Salted Password Verification
+              <div className="text-[11px] text-slate-500 font-mono">
+                AICTE Regulatory Compliance & Multi-Document Assurance
               </div>
+            </div>
+          </div>
+
+          <div className="hidden md:flex items-center gap-3">
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 border border-emerald-200 rounded-lg text-xs font-semibold text-emerald-800">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+              <span>Signed httpOnly Session + Rate Limiter: Active</span>
             </div>
           </div>
         </div>
       </div>
 
-      <main className="flex-1 max-w-5xl mx-auto w-full px-4 py-8 flex flex-col items-center justify-center">
-        <div className="w-full bg-white rounded-xl shadow-md border border-slate-200 overflow-hidden">
-          <div className="bg-slate-900 text-white p-6 sm:p-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="flex-1 flex items-center justify-center p-4 py-8">
+        <div className="w-full max-w-4xl grid grid-cols-1 md:grid-cols-2 bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
+          <div className="p-8 sm:p-10 flex flex-col justify-between">
             <div>
-              <div className="flex items-center gap-2 mb-1">
-                <Shield className="w-5 h-5 text-indigo-400" />
-                <span className="text-xs font-mono uppercase tracking-widest text-indigo-400">
-                  Authenticated Scrutiny Access
-                </span>
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-indigo-50 border border-indigo-200 rounded-full text-xs font-bold text-indigo-700 font-mono mb-4">
+                <Shield className="w-3.5 h-3.5" /> SECURE STATUTORY SIGN-IN
               </div>
-              <h2 className="text-xl sm:text-2xl font-bold">ARC-Verify Credential Sign-In</h2>
-              <p className="text-xs sm:text-sm text-slate-300 mt-1 max-w-2xl">
-                Passwordless login-by-role is disabled. Sessions use HMAC-SHA256 signed HttpOnly cookies and salted scrypt password verification.
+              <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
+                Sign in to Officer Console
+              </h1>
+              <p className="text-xs text-slate-500 mt-1">
+                Enter your registered credentials to access AICTE approval dossiers and verification workbenches.
               </p>
-            </div>
-          </div>
 
-          {error && (
-            <div className="m-6 mb-0 p-4 bg-rose-50 border border-rose-300 rounded-lg flex items-start gap-3 text-rose-800 text-xs sm:text-sm">
-              <AlertCircle className="w-5 h-5 text-rose-600 flex-shrink-0 mt-0.5" />
-              <div>
-                <span className="font-semibold">Authentication Error: </span>
-                <span>{error}</span>
-              </div>
-            </div>
-          )}
+              {error && (
+                <div className="mt-4 p-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 text-rose-600 flex-shrink-0 mt-0.5" />
+                  <span>{error}</span>
+                </div>
+              )}
 
-          <div className="p-6 sm:p-8 grid grid-cols-1 lg:grid-cols-12 gap-8">
-            <div className="lg:col-span-5">
-              <form onSubmit={handleStandardLogin} className="space-y-4 bg-slate-50 p-5 rounded-xl border border-slate-200">
-                <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
-                  Sign In with Email &amp; Password
-                </h3>
+              <form onSubmit={handleStandardLogin} className="mt-6 space-y-4">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                    Official Email ID
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Registered Officer Email
                   </label>
                   <div className="relative">
                     <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -155,13 +156,13 @@ export default function LoginPage() {
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder="officer@example.com"
-                      className="w-full pl-9 pr-3 py-2 text-sm bg-white border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      className="w-full pl-9 pr-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
                     Password
                   </label>
                   <div className="relative">
@@ -171,65 +172,95 @@ export default function LoginPage() {
                       required
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      placeholder="Enter account password"
-                      className="w-full pl-9 pr-3 py-2 text-sm bg-white border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      placeholder="••••••••••••"
+                      className="w-full pl-9 pr-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-mono"
                     />
                   </div>
-                </div>
-
-                <div className="p-3 bg-white border border-slate-200 rounded-md text-[11px] text-slate-600 flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-                  <span>Issues an HMAC-SHA256 signed, HttpOnly session cookie (`arc_verify_session`).</span>
                 </div>
 
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm rounded-md shadow transition flex items-center justify-center gap-2 disabled:opacity-50"
+                  className="w-full mt-2 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-400 text-white rounded-lg text-xs font-bold shadow-md flex items-center justify-center gap-2 transition cursor-pointer"
                 >
-                  {loading ? 'Verifying Credentials...' : 'Sign In with Password'}
-                  <ArrowRight className="w-4 h-4" />
+                  {loading ? (
+                    'Authenticating...'
+                  ) : (
+                    <>
+                      <span>Sign In to Platform</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </>
+                  )}
                 </button>
               </form>
             </div>
 
-            <div className="lg:col-span-7">
-              <div className="mb-3 flex items-center justify-between">
-                <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                  Evaluator Test Accounts (Click to Fill Email &amp; Password)
-                </h3>
-                <span className="text-[11px] font-mono text-slate-500">Salted Scrypt Hashes in DB</span>
+            <div className="pt-6 border-t border-slate-100 text-[11px] text-slate-400 font-mono mt-6">
+              HMAC-SHA256 Session • Rate-Limited Authentication
+            </div>
+          </div>
+
+          <div className="bg-slate-900 text-slate-200 p-8 sm:p-10 flex flex-col justify-between border-t md:border-t-0 md:border-l border-slate-800">
+            <div>
+              <div className="flex items-center gap-2 text-indigo-400 text-xs font-mono font-bold uppercase tracking-wider mb-2">
+                <ShieldCheck className="w-4 h-4" /> Architectural Highlights
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {DEMO_USERS.map((user) => {
-                  const Icon = roleIcons[user.role] || Shield;
-                  return (
-                    <button
-                      key={user.id}
-                      type="button"
-                      onClick={() => handleFillDemoAccount(user)}
-                      className="text-left p-3 rounded-lg border border-slate-200 hover:border-indigo-500 bg-white hover:bg-indigo-50/30 transition flex flex-col justify-between"
-                    >
-                      <div>
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-900">
-                            <Icon className="w-3.5 h-3.5 text-indigo-600" />
-                            {user.name}
+              <h2 className="text-base sm:text-lg font-bold text-white tracking-tight">
+                AICTE Approval Process Handbook (2024–27) Scrutiny
+              </h2>
+              <p className="text-xs text-slate-400 mt-2 leading-relaxed">
+                Deterministic validation against 12 statutory clauses (COMP-01 to COMP-12): land ownership titles, fire NOC cutoffs, FDR corpus funds, affidavit stamps, and faculty-student ratios.
+              </p>
+
+              {isDemoMode && (
+                <div className="mt-6">
+                  <div className="text-[11px] font-bold text-slate-300 uppercase tracking-wider font-mono mb-2">
+                    Quick-Fill Demo Credentials
+                  </div>
+                  <div className="space-y-2">
+                    {DEMO_PRESETS.map((preset) => {
+                      const Icon = preset.icon;
+                      return (
+                        <button
+                          key={preset.email}
+                          type="button"
+                          onClick={() => {
+                            setEmail(preset.email);
+                            setPassword(preset.password);
+                            setError(null);
+                          }}
+                          className="w-full p-2.5 rounded-lg bg-slate-800/80 hover:bg-slate-800 border border-slate-700/80 hover:border-indigo-500/50 flex items-center justify-between text-left transition group cursor-pointer"
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className="w-7 h-7 rounded-md bg-indigo-950 border border-indigo-700 flex items-center justify-center text-indigo-300">
+                              <Icon className="w-3.5 h-3.5" />
+                            </div>
+                            <div className="min-w-0">
+                              <div className="text-xs font-semibold text-white group-hover:text-indigo-300 transition truncate">
+                                {preset.name}
+                              </div>
+                              <div className="text-[10px] text-slate-400 font-mono truncate">
+                                {preset.email}
+                              </div>
+                            </div>
+                          </div>
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-950 text-indigo-300 border border-indigo-800 font-mono flex-shrink-0">
+                            {preset.label}
                           </span>
-                          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 font-bold">
-                            {user.role}
-                          </span>
-                        </div>
-                        <div className="text-[11px] font-mono text-slate-600">{user.email}</div>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="pt-4 border-t border-slate-800 text-[11px] text-slate-500 font-mono">
+              ARC-Verify • Smart India Hackathon 2026
             </div>
           </div>
         </div>
-      </main>
+      </div>
     </div>
   );
 }

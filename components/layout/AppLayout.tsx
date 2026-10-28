@@ -6,6 +6,7 @@ import { Header } from './Header';
 import { useAuth } from '@/components/auth/AuthContext';
 import { AccessDenied } from '@/components/auth/AccessDenied';
 import { PermissionKey, UserRole } from '@/types';
+import { Loader2 } from 'lucide-react';
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -20,10 +21,24 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
   title,
   subtitle,
   requiredPermission,
-  requiredRoles
+  requiredRoles,
 }) => {
-  const { currentUser, switchUser, hasPermission, hasRole, loading } = useAuth();
+  const { currentUser, hasPermission, hasRole, loading } = useAuth();
   const [sidebarOpen, setSidebarOpen] = React.useState(false);
+
+  if (loading) {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center bg-slate-900 text-slate-200">
+        <div className="flex flex-col items-center gap-3 p-6 bg-slate-950/80 border border-slate-800 rounded-xl shadow-xl max-w-sm text-center">
+          <Loader2 className="w-8 h-8 text-indigo-400 animate-spin" />
+          <div>
+            <h2 className="text-sm font-bold text-white">Authenticating Session</h2>
+            <p className="text-xs text-slate-400 mt-1 font-mono">Verifying HMAC session token & role privileges...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const isDenied =
     (requiredPermission && !hasPermission(requiredPermission)) ||
@@ -34,7 +49,6 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
       {/* Sidebar Navigation */}
       <Sidebar
         currentUser={currentUser}
-        onSwitchUser={switchUser}
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
       />
@@ -53,7 +67,6 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
                 currentUser={currentUser}
                 requiredPermission={requiredPermission}
                 requiredRoles={requiredRoles}
-                onSwitchUser={switchUser}
               />
             ) : (
               children

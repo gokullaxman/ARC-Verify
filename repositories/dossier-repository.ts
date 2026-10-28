@@ -9,200 +9,187 @@ import {
   ExternalIntegrationEvent,
 } from '../types';
 import { AuditRepository } from './audit-repository';
+import { DatabaseService } from '../lib/db';
 import { INITIAL_SYNTHETIC_DOSSIERS } from '../lib/arc-verify-Priority-seeds';
-import { SqliteDatabase } from '../lib/sqlite-db';
 
 export class DossierRepository {
-  private cases: VerificationCase[] = [];
-  private documents: DossierDocument[] = [];
-  private extractedFields: ExtractedFieldCandidate[] = [];
-  private runs: ProcessingRun[] = [];
-  private findings: AssuranceFinding[] = [];
-  private decisions: ReviewDecision[] = [];
-  private reports: ScrutinyReport[] = [];
-  private integrationEvents: ExternalIntegrationEvent[] = [];
   public auditRepo: AuditRepository = new AuditRepository();
-  private sqliteDbPath: string;
+  public db: DatabaseService;
 
   constructor(customDbPath?: string) {
-    this.sqliteDbPath = SqliteDatabase.resolveDbPath(customDbPath);
-    this.loadFromSqliteOrSeed();
+    this.db = DatabaseService.getInstance(customDbPath);
+    this.syncAuditFromDb();
+  }
+
+  public syncAuditFromDb(): void {
+    try {
+      const rows = this.db.db.prepare('SELECT * FROM audit_events ORDER BY sequence_number ASC').all() as any[];
+      this.auditRepo.setAllChronological(
+        rows.map(e => ({
+          id: e.id,
+          eventId: e.id,
+          sequenceNumber: e.sequence_number,
+          caseId: e.case_id || undefined,
+          actorId: e.actor_id,
+          actorName: e.actor_name,
+          actorRole: e.actor_role,
+          action: e.action,
+          entityType: e.entity_type,
+          entityId: e.entity_id,
+          reasonOrSummary: e.reason,
+          previousHash: e.previous_hash,
+          eventHash: e.event_hash,
+          timestamp: e.timestamp_utc,
+          timestampUtc: e.timestamp_utc,
+          details: e.details_json ? JSON.parse(e.details_json) : undefined,
+        }))
+      );
+    } catch {
+      // In-memory fallback during isolated test setups
+    }
   }
 
   getDatabasePath(): string {
-    return this.sqliteDbPath;
+    return this.db.dbPath;
   }
 
   loadFromSqliteOrSeed(): void {
-    try {
-      const state = SqliteDatabase.executeOp(this.sqliteDbPath, 'load_dossier_state');
-      if (Array.isArray(state.cases) && state.cases.length > 0) {
-        this.cases = state.cases;
-        this.documents = state.dossier_documents || [];
-        this.extractedFields = state.extracted_fields || [];
-        this.runs = state.processing_runs || [];
-        this.findings = state.findings || [];
-        this.decisions = state.review_decisions || [];
-        this.reports = state.scrutiny_reports || [];
-        this.integrationEvents = state.integration_events || [];
-        this.auditRepo.setAllChronological(state.audit_events || []);
-        return;
-      }
-    } catch (err) {
-      console.warn('[DossierRepository] Failed to read SQLite database, seeding synthetic corpus:', err);
-    }
-
-    this.resetToSyntheticSeeds();
+    this.syncAuditFromDb();
   }
 
   saveToSqlite(): void {
     try {
-      SqliteDatabase.executeOp(this.sqliteDbPath, 'save_dossier_state', {
-        cases: this.cases,
-        documents: this.documents,
-        extractedFields: this.extractedFields,
-        runs: this.runs,
-        findings: this.findings,
-        decisions: this.decisions,
-        reports: this.reports,
-        integrationEvents: this.integrationEvents,
-        auditEvents: this.auditRepo.getAllChronological(),
+      const memEvents = this.auditRepo.getAllChronological();
+      const existingIds = new Set(
+        (this.db.db.prepare('SELECT id FROM audit_events').all() as any[]).map(r => r.id)
+      );
+
+      const insertEvent = this.db.db.prepare(`
+        INSERT OR REPLACE INTO audit_events (
+          id, sequence_number, case_id, actor_id, actor_name, actor_role, action,
+          entity_type, entity_id, reason, previous_hash, event_hash, timestamp_utc, details_json
+        ) VALUES (
+          @id, @sequenceNumber, @caseId, @actorId, @actorName, @actorRole, @action,
+          @entityType, @entityId, @reason, @previousHash, @eventHash, @timestampUtc, @detailsJson
+        )
+      `);
+
+      const saveTransaction = this.db.db.transaction(() => {
+        for (const ev of memEvents) {
+          if (!existingIds.has(ev.id)) {
+            insertEvent.run({
+              id: ev.id,
+              sequenceNumber: ev.sequenceNumber,
+              caseId: ev.caseId || null,
+              actorId: ev.actorId,
+              actorName: ev.actorName,
+              actorRole: ev.actorRole,
+              action: ev.action,
+              entityType: ev.entityType,
+              entityId: ev.entityId,
+              reason: ev.reasonOrSummary || (ev as any).reason || '',
+              previousHash: ev.previousHash,
+              eventHash: ev.eventHash,
+              timestampUtc: ev.timestampUtc || ev.timestamp,
+              detailsJson: ev.details ? JSON.stringify(ev.details) : null,
+            });
+          }
+        }
       });
+
+      saveTransaction();
     } catch (err) {
-      console.warn('[DossierRepository] SQLite persist warning:', err);
+      console.warn('[DossierRepository] saveToSqlite error:', err);
     }
   }
 
-  saveToDisk(): void {
-    this.saveToSqlite();
-  }
+  saveToDisk(): void {}
 
-  /**
-   * Requirement FR-22: Reset synthetic demo data safely without deleting non-demo records.
-   */
   resetToSyntheticSeeds(preserveNonDemo: boolean = true): void {
-    const nonDemoCases = preserveNonDemo ? this.cases.filter(c => !c.isSyntheticDemo) : [];
-    const nonDemoCaseIds = new Set(nonDemoCases.map(c => c.id));
-
     const seeded = INITIAL_SYNTHETIC_DOSSIERS();
-    this.cases = [...nonDemoCases, ...seeded.cases];
-    this.documents = [
-      ...(preserveNonDemo ? this.documents.filter(d => nonDemoCaseIds.has(d.caseId)) : []),
-      ...seeded.documents,
-    ];
-    this.extractedFields = [
-      ...(preserveNonDemo ? this.extractedFields.filter(f => nonDemoCaseIds.has(f.caseId)) : []),
-      ...seeded.extractedFields,
-    ];
-    this.runs = [
-      ...(preserveNonDemo ? this.runs.filter(r => nonDemoCaseIds.has(r.caseId)) : []),
-      ...seeded.runs,
-    ];
-    this.findings = [
-      ...(preserveNonDemo ? this.findings.filter(f => nonDemoCaseIds.has(f.caseId)) : []),
-      ...seeded.findings,
-    ];
-    this.decisions = [
-      ...(preserveNonDemo ? this.decisions.filter(d => nonDemoCaseIds.has(d.caseId)) : []),
-      ...seeded.decisions,
-    ];
-    this.reports = [
-      ...(preserveNonDemo ? this.reports.filter(r => nonDemoCaseIds.has(r.caseId)) : []),
-      ...seeded.reports,
-    ];
-    this.integrationEvents = [
-      ...(preserveNonDemo ? this.integrationEvents.filter(e => nonDemoCaseIds.has(e.caseId)) : []),
-      ...seeded.integrationEvents,
-    ];
-
-    if (this.auditRepo.getAllChronological().length === 0 || !preserveNonDemo) {
-      this.auditRepo = new AuditRepository();
-      for (const seedAudit of seeded.auditInputs) {
-        this.auditRepo.appendEvent(seedAudit);
-      }
+    for (const c of seeded.cases) {
+      this.db.saveCase(c);
     }
-
-    this.saveToSqlite();
+    for (const d of seeded.documents) {
+      this.db.saveDocument(d);
+    }
+    for (const f of seeded.extractedFields) {
+      this.db.saveExtractedField(f);
+    }
+    for (const ev of seeded.auditInputs) {
+      this.auditRepo.appendEvent(ev);
+    }
   }
 
-  // Case CRUD
-  listCases(): VerificationCase[] {
-    return [...this.cases].sort(
-      (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-    );
+  listCases(filter?: { status?: string; institutionId?: string }): VerificationCase[] {
+    return this.db.listCases(filter);
   }
 
-  getCaseById(caseId: string): VerificationCase | undefined {
-    return this.cases.find(c => c.id === caseId);
+  getCaseById(id: string): VerificationCase | null {
+    return this.db.getCaseById(id);
   }
 
-  createCase(newCase: VerificationCase): VerificationCase {
-    this.cases.unshift(newCase);
-    this.saveToSqlite();
-    return newCase;
+  saveCase(c: VerificationCase): void {
+    this.db.saveCase(c);
   }
 
-  updateCase(caseId: string, updates: Partial<VerificationCase>): VerificationCase | undefined {
-    const idx = this.cases.findIndex(c => c.id === caseId);
-    if (idx === -1) return undefined;
-    this.cases[idx] = {
-      ...this.cases[idx],
-      ...updates,
-      updatedAt: new Date().toISOString(),
-    };
-    this.saveToSqlite();
-    return this.cases[idx];
+  createCase(c: VerificationCase): void {
+    this.saveCase(c);
   }
 
-  // Documents
+  listDocuments(caseId: string): DossierDocument[] {
+    return this.db.listDocuments(caseId);
+  }
+
   listDocumentsByCase(caseId: string): DossierDocument[] {
-    return this.documents.filter(d => d.caseId === caseId);
+    return this.listDocuments(caseId);
   }
 
   listAllDocuments(): DossierDocument[] {
-    return [...this.documents];
+    const rows = this.db.db.prepare('SELECT payload_json FROM dossier_documents').all() as any[];
+    return rows.map(r => JSON.parse(r.payload_json));
   }
 
-  getDocumentById(docId: string): DossierDocument | undefined {
-    return this.documents.find(d => d.id === docId);
+  getDocumentById(id: string): DossierDocument | null {
+    return this.db.getDocumentById(id);
   }
 
-  addDocument(doc: DossierDocument): DossierDocument {
-    this.documents.push(doc);
-    this.saveToSqlite();
-    return doc;
+  saveDocument(doc: DossierDocument): void {
+    this.db.saveDocument(doc);
   }
 
-  updateDocument(docId: string, updates: Partial<DossierDocument>): DossierDocument | undefined {
-    const idx = this.documents.findIndex(d => d.id === docId);
-    if (idx === -1) return undefined;
-    this.documents[idx] = { ...this.documents[idx], ...updates };
-    this.saveToSqlite();
-    return this.documents[idx];
+  addDocument(doc: DossierDocument): void {
+    this.saveDocument(doc);
   }
 
-  // Extracted Fields
-  listFieldsByCase(caseId: string): ExtractedFieldCandidate[] {
-    return this.extractedFields.filter(f => f.caseId === caseId);
+  deleteDocument(id: string): boolean {
+    const row = this.db.getDocumentById(id);
+    if (!row) return false;
+    this.db.db.prepare('DELETE FROM dossier_documents WHERE id = ?').run(id);
+    return true;
   }
 
-  listFieldsByDocument(docId: string): ExtractedFieldCandidate[] {
-    return this.extractedFields.filter(f => f.documentId === docId);
-  }
-
-  replaceFieldsForDocument(docId: string, fields: ExtractedFieldCandidate[]): void {
-    this.extractedFields = this.extractedFields.filter(
-      f => f.documentId !== docId || f.isManuallyCorrected
-    );
-    const manuallyCorrectedNames = new Set(
-      this.extractedFields.filter(f => f.documentId === docId).map(f => f.fieldName)
-    );
-    for (const field of fields) {
-      if (!manuallyCorrectedNames.has(field.fieldName)) {
-        this.extractedFields.push(field);
-      }
+  replaceFieldsForDocument(documentId: string, fields: ExtractedFieldCandidate[]): void {
+    this.db.db.prepare('DELETE FROM extracted_fields WHERE document_id = ?').run(documentId);
+    for (const f of fields) {
+      this.saveExtractedField(f);
     }
-    this.saveToSqlite();
+  }
+
+  listExtractedFields(caseId: string): ExtractedFieldCandidate[] {
+    return this.db.listExtractedFields(caseId);
+  }
+
+  listExtractedFieldsByCase(caseId: string): ExtractedFieldCandidate[] {
+    return this.listExtractedFields(caseId);
+  }
+
+  listFieldsByCase(caseId: string): ExtractedFieldCandidate[] {
+    return this.listExtractedFields(caseId);
+  }
+
+  listFieldsByDocument(documentId: string): ExtractedFieldCandidate[] {
+    return this.db.listExtractedFieldsByDocument(documentId);
   }
 
   correctField(params: {
@@ -212,112 +199,106 @@ export class DossierRepository {
     actorName: string;
     actorRole: string;
     reason: string;
-  }): ExtractedFieldCandidate | undefined {
-    const idx = this.extractedFields.findIndex(f => f.id === params.fieldId);
-    if (idx === -1) return undefined;
-    const existing = this.extractedFields[idx];
-    const originalOcr = existing.originalOcrValue ?? existing.rawValue;
-
+  }): ExtractedFieldCandidate {
+    const existing = this.db.getFieldById(params.fieldId);
+    if (!existing) {
+      throw new Error(`Field not found: ${params.fieldId}`);
+    }
     const updated: ExtractedFieldCandidate = {
       ...existing,
+      originalOcrValue: existing.originalOcrValue || existing.rawValue,
       rawValue: params.newValue,
-      normalizedValue: params.newValue.trim(),
+      normalizedValue: params.newValue,
       isManuallyCorrected: true,
-      originalOcrValue: originalOcr,
+      confidence: 1.0,
       correctedByActorId: params.actorId,
       correctedByActorName: params.actorName,
       correctionReason: params.reason,
       correctedAt: new Date().toISOString(),
     };
-    this.extractedFields[idx] = updated;
-
-    this.auditRepo.appendEvent({
-      caseId: existing.caseId,
-      actorId: params.actorId,
-      actorName: params.actorName,
-      actorRole: params.actorRole,
-      action: 'EXTRACTED_FIELD_CORRECTED',
-      entityType: 'EXTRACTED_FIELD',
-      entityId: existing.id,
-      reasonOrSummary: `Field "${existing.fieldLabel}" corrected from "${originalOcr}" to "${params.newValue}". Reason: ${params.reason}`,
-    });
-
-    this.saveToSqlite();
+    this.saveExtractedField(updated);
     return updated;
   }
 
-  // Processing Runs & Findings
-  getRunByIdempotencyKey(caseId: string, idempotencyKey: string): ProcessingRun | undefined {
-    return this.runs.find(r => r.caseId === caseId && r.idempotencyKey === idempotencyKey);
+  saveExtractedField(field: ExtractedFieldCandidate): void {
+    this.db.saveExtractedField(field);
+  }
+
+  recordProcessingRun(run: ProcessingRun, findings: AssuranceFinding[]): void {
+    this.db.saveProcessingRun(run, findings);
+  }
+
+  listRuns(caseId: string): ProcessingRun[] {
+    const rows = this.db.db.prepare('SELECT payload_json FROM processing_runs WHERE case_id = ? ORDER BY started_at DESC').all(caseId) as any[];
+    return rows.map(r => JSON.parse(r.payload_json));
   }
 
   listRunsByCase(caseId: string): ProcessingRun[] {
-    return this.runs.filter(r => r.caseId === caseId);
+    return this.listRuns(caseId);
   }
 
-  saveRun(run: ProcessingRun): ProcessingRun {
-    const idx = this.runs.findIndex(r => r.id === run.id);
-    if (idx === -1) {
-      this.runs.unshift(run);
-    } else {
-      this.runs[idx] = run;
-    }
-    this.saveToSqlite();
-    return run;
-  }
-
-  replaceFindingsForCase(caseId: string, newFindings: AssuranceFinding[]): void {
-    this.findings = this.findings.filter(f => f.caseId !== caseId);
-    this.findings.push(...newFindings);
-    this.saveToSqlite();
+  listFindings(caseId: string): AssuranceFinding[] {
+    return this.db.listFindings(caseId);
   }
 
   listFindingsByCase(caseId: string): AssuranceFinding[] {
-    return this.findings.filter(f => f.caseId === caseId);
+    return this.listFindings(caseId);
   }
 
-  // Review Decisions
-  addReviewDecision(decision: ReviewDecision): ReviewDecision {
-    this.decisions.unshift(decision);
-    this.saveToSqlite();
-    return decision;
+  recordReviewDecision(decision: ReviewDecision): void {
+    this.db.saveReviewDecision(decision);
+  }
+
+  listReviewDecisions(caseId: string): ReviewDecision[] {
+    return this.db.listReviewDecisions(caseId);
   }
 
   listDecisionsByCase(caseId: string): ReviewDecision[] {
-    return this.decisions.filter(d => d.caseId === caseId);
+    return this.listReviewDecisions(caseId);
   }
 
-  // Integration Events
-  replaceIntegrationEventsForCase(caseId: string, events: ExternalIntegrationEvent[]): void {
-    this.integrationEvents = this.integrationEvents.filter(e => e.caseId !== caseId);
-    this.integrationEvents.push(...events);
-    this.saveToSqlite();
+  saveScrutinyReport(report: ScrutinyReport): void {
+    this.db.db.prepare(`
+      INSERT INTO scrutiny_reports (id, case_id, generated_at, generated_by, report_json)
+      VALUES (?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET report_json = excluded.report_json
+    `).run(report.id, report.caseId, report.generatedAt, report.generatedBy, JSON.stringify(report));
   }
 
-  listIntegrationEventsByCase(caseId: string): ExternalIntegrationEvent[] {
-    return this.integrationEvents.filter(e => e.caseId === caseId);
-  }
-
-  // Reports
-  saveReport(report: ScrutinyReport): ScrutinyReport {
-    this.reports.unshift(report);
-    this.saveToSqlite();
-    return report;
+  getScrutinyReport(caseId: string): ScrutinyReport | null {
+    const row = this.db.db.prepare('SELECT report_json FROM scrutiny_reports WHERE case_id = ? ORDER BY generated_at DESC LIMIT 1').get(caseId) as any;
+    if (!row) return null;
+    return JSON.parse(row.report_json);
   }
 
   listReportsByCase(caseId: string): ScrutinyReport[] {
-    return this.reports.filter(r => r.caseId === caseId);
+    const report = this.getScrutinyReport(caseId);
+    return report ? [report] : [];
+  }
+
+  recordIntegrationEvent(event: ExternalIntegrationEvent): void {
+    this.db.db.prepare(`
+      INSERT OR REPLACE INTO integration_events (id, case_id, adapter_name, external_system, status, timestamp, payload_json)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(event.id, event.caseId, event.provider, event.provider, event.status, event.requestedAt, JSON.stringify(event));
+  }
+
+  listIntegrationEvents(caseId: string): ExternalIntegrationEvent[] {
+    const rows = this.db.db.prepare('SELECT payload_json FROM integration_events WHERE case_id = ? ORDER BY timestamp DESC').all(caseId) as any[];
+    return rows.map(r => JSON.parse(r.payload_json));
+  }
+
+  listIntegrationEventsByCase(caseId: string): ExternalIntegrationEvent[] {
+    return this.listIntegrationEvents(caseId);
   }
 }
 
-declare global {
-  // eslint-disable-next-line no-var
-  var __arcVerifyDossierRepo: DossierRepository | undefined;
-}
+// Global Singleton
+let globalDossierRepo: DossierRepository | null = null;
 
 export function getDossierRepository(): DossierRepository {
-  if (!global.__arcVerifyDossierRepo) {
-    global.__arcVerifyDossierRepo = new DossierRepository();
+  if (!globalDossierRepo) {
+    globalDossierRepo = new DossierRepository();
   }
-  return global.__arcVerifyDossierRepo;
+  return globalDossierRepo;
 }

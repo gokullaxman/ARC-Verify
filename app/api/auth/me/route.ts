@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSessionUserFromCookies } from '@/lib/session';
-import { sanitizeUser } from '@/lib/password';
+import { sanitizeUser } from '@/lib/guard';
 
 export async function GET(request: Request) {
   try {
@@ -20,9 +20,9 @@ export async function GET(request: Request) {
       success: true,
       data: sanitizeUser(user),
     });
-  } catch (error: any) {
+  } catch (error) {
     return NextResponse.json(
-      { success: false, message: error.message || 'Failed to verify session' },
+      { success: false, message: 'Failed to verify session' },
       { status: 500 }
     );
   }

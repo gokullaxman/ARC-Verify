@@ -19,7 +19,17 @@ import {
   RotateCcw
 } from 'lucide-react';
 import { SystemSettings } from '@/types';
-import { MASTER_STATES } from '@/lib/mock-data';
+const MASTER_STATES = [
+  'Tamil Nadu',
+  'Karnataka',
+  'Maharashtra',
+  'Uttar Pradesh',
+  'Uttarakhand',
+  'West Bengal',
+  'Rajasthan',
+  'Gujarat',
+  'Delhi',
+];
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState<SystemSettings | null>(null);

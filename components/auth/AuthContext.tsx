@@ -2,40 +2,28 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User, PermissionKey, UserRole } from '@/types';
-import { DEMO_USERS } from '@/lib/mock-data';
 import { hasPermission as checkPermission } from '@/lib/auth';
 
-const DEMO_DEFAULT_PASSWORDS: Record<string, string> = {
-  'superadmin@example.com': 'SuperAdmin@123',
-  'admin@example.com': 'Admin@123',
-  'officer@example.com': 'Officer@123',
-  'verifier@example.com': 'Verifier@123',
-  'operator@example.com': 'Operator@123',
-  'gis@example.com': 'Gis@123',
-  'auditor@example.com': 'Auditor@123',
-  'viewer@example.com': 'Viewer@123',
-};
-
 interface AuthContextType {
-  currentUser: User;
+  currentUser: User | null;
   loading: boolean;
-  switchUser: (userId: string, password?: string) => Promise<void>;
   hasPermission: (permission: PermissionKey) => boolean;
   hasRole: (roles: UserRole[]) => boolean;
   refreshSession: () => Promise<void>;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
-  currentUser: DEMO_USERS[0],
+  currentUser: null,
   loading: true,
-  switchUser: async () => {},
   hasPermission: () => false,
   hasRole: () => false,
   refreshSession: async () => {},
+  logout: async () => {},
 });
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [currentUser, setCurrentUser] = useState<User>(DEMO_USERS[0]);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
 
   const fetchSession = async () => {
@@ -45,10 +33,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const data = await res.json();
         if (data.success && data.data) {
           setCurrentUser(data.data);
+          return;
         }
       }
+      setCurrentUser(null);
     } catch {
-      // session unauthenticated
+      setCurrentUser(null);
     } finally {
       setLoading(false);
     }
@@ -58,26 +48,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     fetchSession();
   }, []);
 
-  const switchUser = async (userId: string, explicitPassword?: string) => {
-    const user = DEMO_USERS.find(u => u.id === userId);
-    if (!user) return;
-    const password = explicitPassword || DEMO_DEFAULT_PASSWORDS[user.email.toLowerCase()] || '';
+  const logout = async () => {
     try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: user.email, password }),
-      });
-      const data = await res.json();
-      if (data.success && data.data) {
-        setCurrentUser(data.data);
-      }
-    } catch (err) {
-      console.error('Switch user error:', err);
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } finally {
+      setCurrentUser(null);
+      window.location.href = '/login';
     }
   };
 
   const hasPerm = (permission: PermissionKey): boolean => {
+    if (!currentUser) return false;
     return checkPermission(currentUser, permission);
   };
 
@@ -92,10 +73,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       value={{
         currentUser,
         loading,
-        switchUser,
         hasPermission: hasPerm,
         hasRole,
         refreshSession: fetchSession,
+        logout,
       }}
     >
       {children}

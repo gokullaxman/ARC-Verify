@@ -21,7 +21,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { Role, PermissionKey } from '@/types';
-import { ALL_PERMISSIONS } from '@/lib/mock-data';
+import { ALL_PERMISSIONS } from '@/lib/permissions';
 
 export default function RolesPage() {
   const { hasPermission } = useAuth();

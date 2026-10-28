@@ -48,6 +48,8 @@ export type PermissionKey =
   | 'USER_CREATE'
   | 'USER_EDIT'
   | 'USER_DISABLE'
+  | 'USER_DELETE'
+  | 'USER_RESET'
   | 'ROLE_VIEW'
   | 'ROLE_CREATE'
   | 'ROLE_EDIT'
@@ -293,6 +295,25 @@ export interface ValidationResult {
     deviationPercentage: number;
   };
 }
+
+export interface AuditEventRecord {
+  id: string;
+  sequenceNumber: number;
+  caseId?: string;
+  actorId: string;
+  actorName: string;
+  actorRole: string;
+  action: string;
+  entityType: string;
+  entityId: string;
+  reason: string;
+  previousHash: string;
+  eventHash: string;
+  timestampUtc: string;
+  details?: any;
+}
+
+export type AuditEvent = AuditEventRecord;
 
 export interface AuditLog {
   id: string;

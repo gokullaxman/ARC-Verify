@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import { DocumentRecord, LandRecord, CadastralParcel, AuditLog, User, AIFeedbackRecord, Role, SystemSettings, AppNotification } from '@/types';
 import { hashPassword, verifyPassword } from './password';
 import { SqliteDatabase } from './sqlite-db';
+import { DatabaseService } from './db';
 import {
   DEMO_USERS,
   INITIAL_DOCUMENTS,

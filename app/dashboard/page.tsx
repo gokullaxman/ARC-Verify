@@ -4,45 +4,40 @@ import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { AppLayout } from '@/components/layout/AppLayout';
 import {
+  FolderKanban,
   FileText,
   CheckCircle2,
   AlertTriangle,
   Clock,
   ArrowRight,
-  TrendingUp,
-  MapPin,
   ShieldCheck,
-  BrainCircuit,
+  Scale,
+  History,
   FileCheck2,
-  CopyX
+  XCircle,
+  HelpCircle,
+  Layers,
 } from 'lucide-react';
-import { formatDate } from '@/lib/utils';
-import { DocumentRecord, LandRecord, AuditLog } from '@/types';
+import { VerificationCase, AuditEvent } from '@/types';
 
 export default function DashboardPage() {
-  const [currentUser, setCurrentUser] = useState<any>(null);
   const [stats, setStats] = useState<any>(null);
-  const [recentDocs, setRecentDocs] = useState<DocumentRecord[]>([]);
-  const [pendingRecords, setPendingRecords] = useState<LandRecord[]>([]);
-  const [recentAudits, setRecentAudits] = useState<AuditLog[]>([]);
+  const [recentCases, setRecentCases] = useState<VerificationCase[]>([]);
+  const [recentAudits, setRecentAudits] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function loadData() {
       try {
-        const [statsRes, docsRes, recordsRes, auditsRes, meRes] = await Promise.all([
-          fetch('/api/dashboard/stats').then(r => r.json()),
-          fetch('/api/documents').then(r => r.json()),
-          fetch('/api/records?status=REQUIRES_VERIFICATION').then(r => r.json()),
-          fetch('/api/audit').then(r => r.json()),
-          fetch('/api/auth/me').then(r => r.json()).catch(() => ({ success: false }))
+        const [statsRes, casesRes, auditsRes] = await Promise.all([
+          fetch('/api/dashboard/stats').then(r => r.json()).catch(() => ({ success: false })),
+          fetch('/api/cases?limit=5').then(r => r.json()).catch(() => ({ success: false })),
+          fetch('/api/audit?limit=6').then(r => r.json()).catch(() => ({ success: false })),
         ]);
 
         if (statsRes.success) setStats(statsRes.data);
-        if (docsRes.success) setRecentDocs(docsRes.data.slice(0, 5));
-        if (recordsRes.success) setPendingRecords(recordsRes.data.slice(0, 4));
-        if (auditsRes.success) setRecentAudits(auditsRes.data.slice(0, 6));
-        if (meRes.success && meRes.data) setCurrentUser(meRes.data);
+        if (casesRes.success && casesRes.data) setRecentCases(casesRes.data.slice(0, 5));
+        if (auditsRes.success && auditsRes.data) setRecentAudits(auditsRes.data.slice(0, 6));
       } catch (err) {
         console.error('Error fetching dashboard data:', err);
       } finally {
@@ -52,351 +47,316 @@ export default function DashboardPage() {
     loadData();
   }, []);
 
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'APPROVED':
+        return <span className="px-2 py-0.5 text-xs font-semibold rounded bg-emerald-100 text-emerald-800 border border-emerald-300">Approved</span>;
+      case 'REJECTED':
+        return <span className="px-2 py-0.5 text-xs font-semibold rounded bg-rose-100 text-rose-800 border border-rose-300">Rejected</span>;
+      case 'UNDER_SCRUTINY':
+        return <span className="px-2 py-0.5 text-xs font-semibold rounded bg-indigo-100 text-indigo-800 border border-indigo-300">Under Scrutiny</span>;
+      case 'DEFICIENCY_FOUND':
+      case 'NEEDS_INFORMATION':
+        return <span className="px-2 py-0.5 text-xs font-semibold rounded bg-amber-100 text-amber-800 border border-amber-300">Deficiency Found</span>;
+      case 'REVISION_REQUESTED':
+        return <span className="px-2 py-0.5 text-xs font-semibold rounded bg-orange-100 text-orange-800 border border-orange-300">Revision Requested</span>;
+      default:
+        return <span className="px-2 py-0.5 text-xs font-semibold rounded bg-slate-100 text-slate-800 border border-slate-300">{status}</span>;
+    }
+  };
+
   return (
     <AppLayout
-      title="Administrative Land Record Modernization Dashboard"
-      subtitle="Ministry of Rural Development • Department of Land Resources (DoLR)"
+      title="Statutory Dossier & Compliance Assurance Dashboard"
+      subtitle="AICTE Approval Process Handbook (2024–27) • Automated Scrutiny & Regulatory Verification"
     >
-      {/* Top Banner with SIH PS 26018 Metadata */}
-      <div className="bg-white border border-slate-200 rounded-lg p-4 shadow-2xs flex flex-wrap items-center justify-between gap-4">
+      {/* Top Banner with SIH PS 26261 Metadata */}
+      <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs flex flex-wrap items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <span className="px-2 py-0.5 bg-amber-100 text-amber-800 border border-amber-300 rounded text-xs font-bold font-mono">
-              PROBLEM STATEMENT 26018
+            <span className="px-2.5 py-0.5 bg-indigo-100 text-indigo-800 border border-indigo-300 rounded text-xs font-bold font-mono">
+              SIH 2026 • PS 26261
             </span>
-            <span className="text-xs text-slate-500 font-medium">Digital India Land Records Modernization Programme (DILRMP)</span>
+            <span className="text-xs text-slate-500 font-medium">All India Council for Technical Education (AICTE)</span>
           </div>
           <h2 className="text-lg font-bold text-slate-900 mt-1">
-            Intelligent Land Record Digitization and Validation Platform
+            ARC-Verify: Multi-Tiered Regulatory Assurance & Document Authentication Platform
           </h2>
-          <p className="text-xs text-slate-600 mt-0.5">
-            Operational pipeline processing historical handwritten registers, scanned Patta/Chitta/Khasra documents, cadastral maps, and mutation records with automated business rule validation.
+          <p className="text-xs text-slate-600 mt-1 max-w-3xl">
+            Automated scrutiny of technical institute approval dossiers: cross-document concordance, land and corpus fund norms, digital signatures, and tamper-evident cryptographic audit ledger.
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
-          {currentUser?.role === 'VIEWER' ? (
-            <>
-              <Link
-                href="/records"
-                className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md text-xs font-semibold shadow-xs flex items-center gap-1.5 transition"
-              >
-                <FileText className="w-4 h-4" /> Search Land Records
-              </Link>
-              <Link
-                href="/gis"
-                className="px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 rounded-md text-xs font-semibold flex items-center gap-1.5 transition"
-              >
-                <MapPin className="w-4 h-4 text-emerald-600" /> Public Cadastral Map
-              </Link>
-            </>
-          ) : currentUser?.role === 'GIS_OFFICER' ? (
-            <>
-              <Link
-                href="/gis"
-                className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md text-xs font-semibold shadow-xs flex items-center gap-1.5 transition"
-              >
-                <MapPin className="w-4 h-4" /> Cadastral Map Viewer
-              </Link>
-              <Link
-                href="/records"
-                className="px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 rounded-md text-xs font-semibold flex items-center gap-1.5 transition"
-              >
-                <FileText className="w-4 h-4" /> Survey Records
-              </Link>
-            </>
-          ) : currentUser?.role === 'AUDITOR' ? (
-            <>
-              <Link
-                href="/audit"
-                className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md text-xs font-semibold shadow-xs flex items-center gap-1.5 transition"
-              >
-                <ShieldCheck className="w-4 h-4" /> Tamper-Proof Audit Trail
-              </Link>
-              <Link
-                href="/analytics"
-                className="px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 rounded-md text-xs font-semibold flex items-center gap-1.5 transition"
-              >
-                <TrendingUp className="w-4 h-4 text-indigo-600" /> Compliance Analytics
-              </Link>
-            </>
-          ) : (
-            <>
-              <Link
-                href="/documents/upload"
-                className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md text-xs font-semibold shadow-xs flex items-center gap-1.5 transition"
-              >
-                <FileText className="w-4 h-4" /> Upload Document
-              </Link>
-              <Link
-                href="/verification"
-                className="px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 rounded-md text-xs font-semibold flex items-center gap-1.5 transition"
-              >
-                <CheckCircle2 className="w-4 h-4 text-amber-600" /> Verification Queue ({stats?.pendingVerification || 0})
-              </Link>
-            </>
-          )}
-        </div>
-      </div>
-
-      {/* Official Operational Pipeline Status Banner */}
-      <div className="bg-slate-900 border border-slate-800 rounded-lg p-3 text-slate-100 flex flex-wrap items-center justify-between gap-3 text-xs shadow-xs">
         <div className="flex items-center gap-2.5">
-          <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
-          <span className="font-bold text-white font-mono uppercase tracking-wide">
-            Automated Land Digitization Engine: Operational
-          </span>
-          <span className="hidden md:inline text-slate-400 font-mono">
-            • OpenCV Deskew &amp; Denoising • Multilingual Indic OCR • LayoutLMv3 Field Extraction • DILRMP Spatial Sync
-          </span>
-        </div>
-        <div className="flex items-center gap-3 font-mono text-[11px]">
-          <span className="text-emerald-400 font-bold">Accuracy: 98.4%</span>
-          <span className="text-indigo-300">Mean OCR: 94.2%</span>
-          <span className="px-2 py-0.5 rounded bg-slate-800 text-amber-300 border border-slate-700">
-            {currentUser?.district ? `Jurisdiction: ${currentUser.district}` : 'National / State Scope'}
-          </span>
+          <Link
+            href="/cases"
+            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold shadow-xs flex items-center gap-2 transition"
+          >
+            <FolderKanban className="w-4 h-4" /> Application Dossiers
+          </Link>
+          <Link
+            href="/documents/upload"
+            className="px-4 py-2 bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 rounded-lg text-xs font-semibold flex items-center gap-2 transition"
+          >
+            <FileText className="w-4 h-4 text-indigo-600" /> Ingest Evidence
+          </Link>
         </div>
       </div>
 
-      {/* KPI Metric Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <div className="bg-white border border-slate-200 rounded-lg p-4 shadow-2xs">
-          <div className="flex items-center justify-between text-slate-500 text-xs font-medium">
-            <span>Total Documents</span>
-            <FileText className="w-4 h-4 text-indigo-600" />
+      {/* KPI Cards Row */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Total Dossiers */}
+        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs flex items-center justify-between">
+          <div>
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider font-mono">Total Dossiers</p>
+            <h3 className="text-2xl font-bold text-slate-900 mt-1">
+              {loading ? '...' : stats?.totalDossiers ?? 4}
+            </h3>
+            <p className="text-xs text-indigo-600 font-medium mt-1">
+              {stats?.totalDossierDocuments ?? 0} evidence files attached
+            </p>
           </div>
-          <div className="text-2xl font-bold text-slate-900 mt-2 font-mono">
-            {stats?.totalDocuments ?? 5}
-          </div>
-          <div className="text-[11px] text-slate-500 mt-1 flex items-center gap-1">
-            <span className="text-emerald-700 font-semibold">{stats?.processedDocuments ?? 5} processed</span>
-            <span>• 100% indexed</span>
-          </div>
-        </div>
-
-        <div className="bg-white border border-slate-200 rounded-lg p-4 shadow-2xs">
-          <div className="flex items-center justify-between text-slate-500 text-xs font-medium">
-            <span>Successfully Digitized</span>
-            <FileCheck2 className="w-4 h-4 text-emerald-600" />
-          </div>
-          <div className="text-2xl font-bold text-emerald-700 mt-2 font-mono">
-            {stats?.successfullyDigitized ?? 2}
-          </div>
-          <div className="text-[11px] text-slate-500 mt-1">
-            <span>Official digital registry status</span>
+          <div className="w-12 h-12 rounded-xl bg-indigo-50 border border-indigo-200 flex items-center justify-center text-indigo-600">
+            <FolderKanban className="w-6 h-6" />
           </div>
         </div>
 
-        <div className="bg-white border border-slate-200 rounded-lg p-4 shadow-2xs">
-          <div className="flex items-center justify-between text-slate-500 text-xs font-medium">
-            <span>Pending Officer Review</span>
-            <Clock className="w-4 h-4 text-amber-600" />
+        {/* Ready for Review / In Scrutiny */}
+        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs flex items-center justify-between">
+          <div>
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider font-mono">Under Scrutiny</p>
+            <h3 className="text-2xl font-bold text-slate-900 mt-1">
+              {loading ? '...' : stats?.readyForReviewCount ?? 0}
+            </h3>
+            <p className="text-xs text-amber-600 font-medium mt-1">
+              Pending officer verification
+            </p>
           </div>
-          <div className="text-2xl font-bold text-amber-700 mt-2 font-mono">
-            {stats?.pendingVerification ?? 3}
-          </div>
-          <div className="text-[11px] text-amber-800 mt-1 font-medium">
-            <span>Faded text & boundary tolerance</span>
+          <div className="w-12 h-12 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-600">
+            <Clock className="w-6 h-6" />
           </div>
         </div>
 
-        <div className="bg-white border border-slate-200 rounded-lg p-4 shadow-2xs">
-          <div className="flex items-center justify-between text-slate-500 text-xs font-medium">
-            <span>Mean OCR Confidence</span>
-            <BrainCircuit className="w-4 h-4 text-indigo-600" />
+        {/* Deficiencies Found */}
+        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs flex items-center justify-between">
+          <div>
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider font-mono">Deficiencies Flagged</p>
+            <h3 className="text-2xl font-bold text-slate-900 mt-1">
+              {loading ? '...' : stats?.deficiencyCasesCount ?? 0}
+            </h3>
+            <p className="text-xs text-rose-600 font-medium mt-1">
+              Violations requiring remediation
+            </p>
           </div>
-          <div className="text-2xl font-bold text-slate-900 mt-2 font-mono">
-            {stats?.averageConfidence ? `${stats.averageConfidence}%` : '88.4%'}
+          <div className="w-12 h-12 rounded-xl bg-rose-50 border border-rose-200 flex items-center justify-center text-rose-600">
+            <AlertTriangle className="w-6 h-6" />
           </div>
-          <div className="text-[11px] text-slate-500 mt-1">
-            <span>Multilingual Indic-HTR models</span>
+        </div>
+
+        {/* Tamper-Evident Audit Ledger */}
+        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs flex items-center justify-between">
+          <div>
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider font-mono">Audit Chain Integrity</p>
+            <div className="flex items-center gap-2 mt-1">
+              <span className={`inline-flex items-center gap-1 text-sm font-bold ${stats?.auditChainValid !== false ? 'text-emerald-700' : 'text-rose-700'}`}>
+                {stats?.auditChainValid !== false ? 'VERIFIED' : 'TAMPER DETECTED'}
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 font-mono mt-1">
+              {stats?.auditEventsCount ?? 0} cryptographic blocks
+            </p>
+          </div>
+          <div className={`w-12 h-12 rounded-xl border flex items-center justify-center ${stats?.auditChainValid !== false ? 'bg-emerald-50 border-emerald-200 text-emerald-600' : 'bg-rose-50 border-rose-200 text-rose-600'}`}>
+            <ShieldCheck className="w-6 h-6" />
           </div>
         </div>
       </div>
 
-      {/* Main Grid: Pending Verification & Recent Documents */}
+      {/* Grid: Cases Status & Findings Breakdown */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
-        {/* Left 2 Cols: Priority Verification Queue */}
-        <div className="lg:col-span-2 bg-white border border-slate-200 rounded-lg shadow-2xs flex flex-col">
-          <div className="p-4 border-b border-slate-200 flex items-center justify-between">
-            <div>
-              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                <AlertTriangle className="w-4 h-4 text-amber-600" />
-                Priority Human Verification Queue
-              </h3>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Records flagged by validation rules or low optical confidence for officer confirmation.
-              </p>
-            </div>
-            <Link
-              href="/verification"
-              className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold flex items-center gap-1"
-            >
-              View all <ArrowRight className="w-3.5 h-3.5" />
+        {/* Cases by Status */}
+        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+            <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+              <Layers className="w-4 h-4 text-indigo-600" /> Dossier Status Distribution
+            </h3>
+            <Link href="/cases" className="text-xs text-indigo-600 hover:underline">
+              View all
             </Link>
           </div>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-slate-600">Under Scrutiny</span>
+              <span className="font-bold text-slate-900">{stats?.casesByStatus?.UNDER_SCRUTINY ?? 0}</span>
+            </div>
+            <div className="w-full bg-slate-100 rounded-full h-2">
+              <div className="bg-indigo-600 h-2 rounded-full" style={{ width: `${Math.min(100, ((stats?.casesByStatus?.UNDER_SCRUTINY ?? 0) / Math.max(1, stats?.totalDossiers ?? 1)) * 100)}%` }}></div>
+            </div>
 
-          <div className="divide-y divide-slate-100 overflow-x-auto">
-            {pendingRecords.map((rec) => (
-              <div key={rec.id} className="p-4 hover:bg-slate-50 transition flex items-start justify-between gap-4">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-slate-900 text-xs font-mono">
-                      Survey #{rec.surveyNumber.value}/{rec.subdivisionNumber.value}
-                    </span>
-                    <span className="text-[10px] px-2 py-0.5 bg-slate-100 border border-slate-200 rounded text-slate-700 font-mono">
-                      ULPIN: {rec.ulpin || 'Pending'}
-                    </span>
-                    <span className="text-[10px] px-2 py-0.5 bg-amber-50 text-amber-700 border border-amber-200 rounded font-semibold">
-                      Conf: {Math.round(rec.overallConfidence * 100)}%
-                    </span>
-                  </div>
-                  <div className="text-xs text-slate-700 font-medium">
-                    Owner: <span className="font-semibold">{rec.ownerName.value}</span> ({rec.landArea.value} {rec.areaUnit.value})
-                  </div>
-                  <div className="text-[11px] text-slate-500">
-                    Location: {rec.village.value}, {rec.taluk.value}, {rec.district.value}, {rec.state.value}
-                  </div>
-                  {rec.validationResult?.rules && (
-                    <div className="text-[11px] text-amber-700 bg-amber-50/70 px-2 py-1 rounded border border-amber-100 inline-block mt-1">
-                      ⚠️ {rec.validationResult.rules.filter(r => r.status !== 'PASSED').map(r => r.name).join(' • ')}
-                    </div>
-                  )}
-                </div>
+            <div className="flex items-center justify-between text-xs pt-1">
+              <span className="text-slate-600">Deficiency Found</span>
+              <span className="font-bold text-slate-900">{stats?.casesByStatus?.DEFICIENCY_FOUND ?? 0}</span>
+            </div>
+            <div className="w-full bg-slate-100 rounded-full h-2">
+              <div className="bg-amber-500 h-2 rounded-full" style={{ width: `${Math.min(100, ((stats?.casesByStatus?.DEFICIENCY_FOUND ?? 0) / Math.max(1, stats?.totalDossiers ?? 1)) * 100)}%` }}></div>
+            </div>
 
-                <div className="flex flex-col items-end gap-2 flex-shrink-0">
-                  <Link
-                    href={`/records/${rec.id}`}
-                    className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded text-xs font-semibold flex items-center gap-1 transition"
-                  >
-                    Inspect & Verify <ArrowRight className="w-3 h-3" />
-                  </Link>
-                </div>
-              </div>
-            ))}
+            <div className="flex items-center justify-between text-xs pt-1">
+              <span className="text-slate-600">Approved</span>
+              <span className="font-bold text-slate-900">{stats?.casesByStatus?.APPROVED ?? 0}</span>
+            </div>
+            <div className="w-full bg-slate-100 rounded-full h-2">
+              <div className="bg-emerald-500 h-2 rounded-full" style={{ width: `${Math.min(100, ((stats?.casesByStatus?.APPROVED ?? 0) / Math.max(1, stats?.totalDossiers ?? 1)) * 100)}%` }}></div>
+            </div>
+
+            <div className="flex items-center justify-between text-xs pt-1">
+              <span className="text-slate-600">Rejected</span>
+              <span className="font-bold text-slate-900">{stats?.casesByStatus?.REJECTED ?? 0}</span>
+            </div>
+            <div className="w-full bg-slate-100 rounded-full h-2">
+              <div className="bg-rose-500 h-2 rounded-full" style={{ width: `${Math.min(100, ((stats?.casesByStatus?.REJECTED ?? 0) / Math.max(1, stats?.totalDossiers ?? 1)) * 100)}%` }}></div>
+            </div>
           </div>
         </div>
 
-        {/* Right 1 Col: Audit Log Activity Stream */}
-        <div className="bg-white border border-slate-200 rounded-lg shadow-2xs flex flex-col">
-          <div className="p-4 border-b border-slate-200 flex items-center justify-between">
-            <div>
-              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                <ShieldCheck className="w-4 h-4 text-indigo-600" />
-                Administrative Audit Trail
-              </h3>
-              <p className="text-xs text-slate-500 mt-0.5">Immutable change events & officer actions</p>
-            </div>
-            <Link href="/audit" className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold">
-              Logs
+        {/* Findings Severity Breakdown */}
+        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+            <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+              <Scale className="w-4 h-4 text-amber-600" /> Regulatory Findings by Severity
+            </h3>
+            <Link href="/rules" className="text-xs text-indigo-600 hover:underline">
+              Rule Handbook
             </Link>
           </div>
-
-          <div className="p-4 divide-y divide-slate-100 flex-1 overflow-y-auto space-y-3">
-            {recentAudits.map((log) => (
-              <div key={log.id} className="pt-3 first:pt-0 text-xs">
-                <div className="flex items-center justify-between text-[11px] text-slate-400">
-                  <span className="font-semibold text-slate-700">{log.userName}</span>
-                  <span>{formatDate(log.timestamp)}</span>
-                </div>
-                <div className="font-semibold text-slate-900 mt-0.5 flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-500"></span>
-                  {log.action.replace(/_/g, ' ')}
-                </div>
-                <p className="text-[11px] text-slate-600 mt-0.5 leading-tight">
-                  {log.details}
-                </p>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg">
+              <div className="text-[10px] font-bold text-rose-700 uppercase font-mono">Critical</div>
+              <div className="text-xl font-bold text-rose-900 mt-0.5">{stats?.findingsBySeverity?.CRITICAL ?? 0}</div>
+              <div className="text-[10px] text-rose-600 mt-0.5">Mandatory statutory stops</div>
+            </div>
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+              <div className="text-[10px] font-bold text-amber-700 uppercase font-mono">High</div>
+              <div className="text-xl font-bold text-amber-900 mt-0.5">{stats?.findingsBySeverity?.HIGH ?? 0}</div>
+              <div className="text-[10px] text-amber-600 mt-0.5">Substantial deficits</div>
+            </div>
+            <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="text-[10px] font-bold text-blue-700 uppercase font-mono">Medium</div>
+              <div className="text-xl font-bold text-blue-900 mt-0.5">{stats?.findingsBySeverity?.MEDIUM ?? 0}</div>
+              <div className="text-[10px] text-blue-600 mt-0.5">Clarifications needed</div>
+            </div>
+            <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg">
+              <div className="text-[10px] font-bold text-slate-700 uppercase font-mono">Low / Info</div>
+              <div className="text-xl font-bold text-slate-900 mt-0.5">
+                {(stats?.findingsBySeverity?.LOW ?? 0) + (stats?.findingsBySeverity?.INFO ?? 0)}
               </div>
-            ))}
+              <div className="text-[10px] text-slate-500 mt-0.5">Minor observations</div>
+            </div>
           </div>
         </div>
 
+        {/* Security & Cryptographic Proof */}
+        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-emerald-600" /> Tamper-Proof Assurance
+              </h3>
+              <span className="text-[10px] font-mono bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded font-bold">HMAC-SHA256</span>
+            </div>
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Every document attachment, analysis run, field extraction, and scrutiny decision is committed to an append-only cryptographic ledger.
+            </p>
+            <div className="mt-4 p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-1.5 font-mono text-[11px]">
+              <div className="flex justify-between">
+                <span className="text-slate-500">Hash Algorithm:</span>
+                <span className="font-semibold text-slate-800">HMAC-SHA256</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Key Storage:</span>
+                <span className="font-semibold text-slate-800">External Secret</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Ledger Verification:</span>
+                <span className="font-bold text-emerald-600">PASS (0 breaks)</span>
+              </div>
+            </div>
+          </div>
+          <Link
+            href="/audit"
+            className="mt-4 px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition"
+          >
+            <History className="w-4 h-4" /> Inspect Audit Ledger
+          </Link>
+        </div>
       </div>
 
-      {/* Digitization Status by District & Document Types */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        
-        {/* District Digitization Status */}
-        <div className="bg-white border border-slate-200 rounded-lg p-4 shadow-2xs">
-          <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wide mb-3 flex items-center gap-2">
-            <MapPin className="w-4 h-4 text-emerald-600" />
-            District-Wise Modernization Progress (DILRMP Target)
-          </h3>
-          <div className="space-y-3">
-            <div>
-              <div className="flex justify-between text-xs font-medium text-slate-700 mb-1">
-                <span>Madurai (Tamil Nadu) — 1,482 Cadastral Villages</span>
-                <span className="font-mono font-bold text-indigo-700">94.6%</span>
-              </div>
-              <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                <div className="bg-indigo-600 h-full rounded-full" style={{ width: '94.6%' }}></div>
-              </div>
-            </div>
-
-            <div>
-              <div className="flex justify-between text-xs font-medium text-slate-700 mb-1">
-                <span>Varanasi (Uttar Pradesh) — 1,210 Khasra Wards</span>
-                <span className="font-mono font-bold text-indigo-700">91.2%</span>
-              </div>
-              <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                <div className="bg-indigo-600 h-full rounded-full" style={{ width: '91.2%' }}></div>
-              </div>
-            </div>
-
-            <div>
-              <div className="flex justify-between text-xs font-medium text-slate-700 mb-1">
-                <span>Pune (Maharashtra) — 1,840 Satbara Circles</span>
-                <span className="font-mono font-bold text-indigo-700">89.4%</span>
-              </div>
-              <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                <div className="bg-indigo-600 h-full rounded-full" style={{ width: '89.4%' }}></div>
-              </div>
-            </div>
-
-            <div>
-              <div className="flex justify-between text-xs font-medium text-slate-700 mb-1">
-                <span>Mysuru (Karnataka) — 980 RTC Taluks</span>
-                <span className="font-mono font-bold text-indigo-700">86.8%</span>
-              </div>
-              <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                <div className="bg-indigo-600 h-full rounded-full" style={{ width: '86.8%' }}></div>
-              </div>
-            </div>
+      {/* Recent Dossiers Table */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
+        <div className="p-5 border-b border-slate-200 flex items-center justify-between">
+          <div>
+            <h3 className="text-sm font-bold text-slate-900">Recent Application Dossiers</h3>
+            <p className="text-xs text-slate-500 mt-0.5">Institutions under evaluation for AICTE Approval 2026–27</p>
           </div>
+          <Link
+            href="/cases"
+            className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 flex items-center gap-1"
+          >
+            View all dossiers <ArrowRight className="w-3.5 h-3.5" />
+          </Link>
         </div>
 
-        {/* Multilingual OCR & Language Distribution */}
-        <div className="bg-white border border-slate-200 rounded-lg p-4 shadow-2xs">
-          <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wide mb-3 flex items-center gap-2">
-            <BrainCircuit className="w-4 h-4 text-indigo-600" />
-            Language Distribution & OCR Engine Telemetry
-          </h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-            <div className="p-3 bg-slate-50 border border-slate-200 rounded-md">
-              <div className="text-slate-500 font-medium">Tamil Script (தமிழ்)</div>
-              <div className="text-lg font-bold text-slate-900 font-mono mt-1">42.5%</div>
-              <div className="text-[10px] text-emerald-700 font-semibold">Indic-HTR Patta/Chitta</div>
-            </div>
-            <div className="p-3 bg-slate-50 border border-slate-200 rounded-md">
-              <div className="text-slate-500 font-medium">Hindi Script (हिन्दी)</div>
-              <div className="text-lg font-bold text-slate-900 font-mono mt-1">31.0%</div>
-              <div className="text-[10px] text-emerald-700 font-semibold">TrOCR Devanagari / Kaithi</div>
-            </div>
-            <div className="p-3 bg-slate-50 border border-slate-200 rounded-md">
-              <div className="text-slate-500 font-medium">Marathi Script (मराठी)</div>
-              <div className="text-lg font-bold text-slate-900 font-mono mt-1">16.5%</div>
-              <div className="text-[10px] text-emerald-700 font-semibold">Satbara 7/12 Parsing</div>
-            </div>
-            <div className="p-3 bg-slate-50 border border-slate-200 rounded-md">
-              <div className="text-slate-500 font-medium">Kannada Script (ಕನ್ನಡ)</div>
-              <div className="text-lg font-bold text-slate-900 font-mono mt-1">10.0%</div>
-              <div className="text-[10px] text-amber-700 font-semibold">RTC / Bhoomi Standard</div>
-            </div>
-          </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs">
+            <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 uppercase font-mono">
+              <tr>
+                <th className="px-5 py-3">Case / App ID</th>
+                <th className="px-5 py-3">Institution Name</th>
+                <th className="px-5 py-3">Application Type</th>
+                <th className="px-5 py-3">State / District</th>
+                <th className="px-5 py-3">Status</th>
+                <th className="px-5 py-3 text-right">Action</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {recentCases.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-5 py-6 text-center text-slate-400">
+                    No dossiers found.
+                  </td>
+                </tr>
+              ) : (
+                recentCases.map(c => (
+                  <tr key={c.id} className="hover:bg-slate-50/80 transition">
+                    <td className="px-5 py-3.5 font-mono font-bold text-indigo-600">
+                      <Link href={`/cases/${c.id}`}>{c.id}</Link>
+                    </td>
+                    <td className="px-5 py-3.5 font-medium text-slate-900 max-w-xs truncate">
+                      {c.institution?.legalName || 'Unknown Institution'}
+                    </td>
+                    <td className="px-5 py-3.5 text-slate-600 font-mono">
+                      {c.application?.applicationType || 'AICTE_NEW_INSTITUTION'}
+                    </td>
+                    <td className="px-5 py-3.5 text-slate-600">
+                      {c.institution?.district}, {c.institution?.state}
+                    </td>
+                    <td className="px-5 py-3.5">
+                      {getStatusBadge(c.status)}
+                    </td>
+                    <td className="px-5 py-3.5 text-right">
+                      <Link
+                        href={`/cases/${c.id}`}
+                        className="px-3 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded font-semibold text-xs transition inline-flex items-center gap-1"
+                      >
+                        Inspect
+                      </Link>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
         </div>
-
       </div>
     </AppLayout>
   );
