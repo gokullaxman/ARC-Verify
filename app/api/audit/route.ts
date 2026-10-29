@@ -20,13 +20,25 @@ export async function GET(request: NextRequest) {
       snapshot = dbService.createAuditSnapshot();
     }
 
+    const mappedEvents = events.map(e => ({
+      ...e,
+      timestamp: e.timestampUtc,
+      userId: e.actorId,
+      userName: e.actorName,
+      userRole: e.actorRole,
+      details: typeof e.details === 'object' && e.details !== null
+        ? JSON.stringify(e.details)
+        : (e.reason || 'System event committed'),
+      recordId: e.entityId,
+    }));
+
     return NextResponse.json({
       success: true,
-      count: events.length,
+      count: mappedEvents.length,
       source: 'tamper_evident_hmac_ledger',
       chainIntegrity,
       snapshot,
-      data: events,
+      data: mappedEvents,
     });
   } catch (error) {
     return handleRouteError(error);

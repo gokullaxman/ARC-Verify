@@ -9,9 +9,11 @@ export function formatArea(area: number, unit: string) {
   return `${area.toFixed(2)} ${unit}`;
 }
 
-export function formatDate(isoString: string) {
+export function formatDate(isoString?: string | null) {
+  if (!isoString) return '—';
   try {
     const d = new Date(isoString);
+    if (isNaN(d.getTime())) return String(isoString);
     return d.toLocaleDateString('en-IN', {
       day: '2-digit',
       month: 'short',
@@ -20,7 +22,7 @@ export function formatDate(isoString: string) {
       minute: '2-digit'
     });
   } catch {
-    return isoString;
+    return String(isoString);
   }
 }
 

@@ -11,3 +11,5 @@ pypdf>=4.0.0
 pyhanko>=0.21.0
 pyhanko-certvalidator>=0.26.0
 cryptography>=42.0.0
+google-genai>=0.1.1
+pytest>=8.0.0

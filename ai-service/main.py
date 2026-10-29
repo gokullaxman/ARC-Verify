@@ -3,13 +3,24 @@ import io
 import json
 import hashlib
 from typing import List, Optional, Dict, Any
-from fastapi import FastAPI, File, UploadFile, HTTPException, BackgroundTasks
+from fastapi import FastAPI, File, Form, UploadFile, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import uvicorn
 import cv2
 import numpy as np
+
 from extract_pdf import verify_pdf_cryptographic_signature
+from extraction_schemas import (
+    FindingExplanationRequest,
+    FindingExplanationResponse,
+    CrossDocumentAssistanceResponse,
+    ChatRequest,
+    ChatResponse,
+)
+from gemini_service import gemini_service, _CONTENT_CACHE
+from document_pipeline import process_document_pipeline
+from preprocessing import preprocess_image_pipeline
 
 try:
     from datasets import load_dataset
@@ -24,18 +35,16 @@ except ImportError:
     WEBDATASET_AVAILABLE = False
 
 app = FastAPI(
-    title="ARC-Verify Document AI, OCR & Experimental Forensics Service (SIH 26261)",
+    title="ARC-Verify Document AI, Gemini OCR & Regulatory Assurance Service (SIH 26261)",
     description=(
-        "AI-Powered Application Validation, Document Authentication and Regulatory Compliance "
-        "Verification service. Extracts page-level OCR fields, computes SHA-256 file hashes, "
-        "inspects PDF digital signatures, and computes experimental visual anomaly indicators "
-        "(ELA recompression variance, Laplacian sharpness, HSV seal chrominance) with strict "
+        "AI-Powered Application Validation, Document Authentication, Gemini Extraction and Regulatory Compliance "
+        "Verification service. Extracts structured fields via Gemini API with Pydantic validation, computes SHA-256 "
+        "file hashes, inspects PDF digital signatures, and computes experimental visual anomaly indicators with strict "
         "non-conclusive guardrails."
     ),
-    version="2026.1.0"
+    version="2026.2.0"
 )
 
-# Blueprint Section 13.1 & 14: Restrict CORS to local frontend origins instead of wildcard '*' with credentials
 ALLOWED_ORIGINS = [
     origin.strip()
     for origin in os.environ.get(
@@ -50,7 +59,7 @@ app.add_middleware(
     allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["GET", "POST", "OPTIONS"],
-    allow_headers=["Content-Type", "Authorization", "X-Idempotency-Key"],
+    allow_headers=["Content-Type", "Authorization", "X-Idempotency-Key", "X-ARC-Verify-Internal"],
 )
 
 MAX_UPLOAD_BYTES = int(os.environ.get("MAX_UPLOAD_SIZE_BYTES", str(15 * 1024 * 1024)))
@@ -106,28 +115,39 @@ loaded_datasets_state: Dict[str, Dict[str, Any]] = {
 }
 
 
-class DatasetLoadRequest(BaseModel):
-    dataset_id: str
-    subset: Optional[str] = None
-    split: Optional[str] = "train"
-    streaming: bool = True
-
-
-class MultilingualEvalRequest(BaseModel):
-    text: str
-    language: str
+class CrossDocumentAnalysisRequest(BaseModel):
+    declared_data: Dict[str, Any]
+    extracted_docs: List[Dict[str, Any]]
 
 
 @app.get("/")
 def health_check():
     return {
-        "service": "ARC-Verify Document AI, OCR & Experimental Forensics Engine (SIH 26261)",
+        "service": "ARC-Verify Document AI, Gemini OCR & Regulatory Assurance Service (SIH 26261)",
         "status": "HEALTHY",
-        "pipeline_version": "ARC-VERIFY-AI-2026.1.0",
+        "pipeline_version": "ARC-VERIFY-AI-2026.2.0",
+        "gemini_available": gemini_service.is_available,
+        "gemini_model": gemini_service.model,
+        "cached_results_count": len(_CONTENT_CACHE),
         "datasets_available": DATASETS_AVAILABLE,
         "webdataset_available": WEBDATASET_AVAILABLE,
         "cors_restricted_origins": ALLOWED_ORIGINS,
         "guardrail_policy": "AI extracts evidence; deterministic rules evaluate compliance; experimental forensic heuristics never auto-reject.",
+    }
+
+
+@app.get("/gemini/status")
+def gemini_status():
+    return {
+        "available": gemini_service.is_available,
+        "active_model": gemini_service.model,
+        "cache_entries": len(_CONTENT_CACHE),
+        "supported_tasks": [
+            "DOCUMENT_CLASSIFICATION",
+            "STRUCTURED_FIELD_EXTRACTION",
+            "CROSS_DOCUMENT_ANALYSIS",
+            "FINDING_EXPLANATION",
+        ],
     }
 
 
@@ -147,15 +167,77 @@ def list_datasets():
     return {"total": len(results), "datasets": results}
 
 
+@app.post("/pipeline/process")
+async def process_document_endpoint(
+    file: UploadFile = File(...),
+    declared_category: Optional[str] = Form(None),
+):
+    """
+    Unified Document Processing Pipeline:
+    1. Size and format check.
+    2. SHA-256 calculation.
+    3. Local text extraction (PDF / OCR) first.
+    4. Cryptographic PDF signature inspection.
+    5. Gemini document classification & category confirmation.
+    6. Gemini structured field extraction with Pydantic validation.
+    7. Image forensics calculation if applicable.
+    8. Returns clean evidence-linked payload.
+    """
+    contents = await file.read()
+    if len(contents) == 0:
+        raise HTTPException(status_code=400, detail="Uploaded file is empty")
+    if len(contents) > MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail="Uploaded file exceeds size limit")
+
+    result = process_document_pipeline(
+        file_bytes=contents,
+        filename=file.filename or "document.pdf",
+        declared_category=declared_category,
+    )
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error", "Processing failed"))
+
+    return result
+
+
+@app.post("/dossier/cross-document-analysis", response_model=CrossDocumentAssistanceResponse)
+def cross_document_analysis_endpoint(payload: CrossDocumentAnalysisRequest):
+    """
+    Compares application form declared fields against extracted document fields
+    using Gemini normalization and deterministic rule matching.
+    """
+    return gemini_service.analyze_cross_document(
+        declared_data=payload.declared_data,
+        extracted_docs=payload.extracted_docs,
+    )
+
+
+@app.post("/findings/explain", response_model=FindingExplanationResponse)
+def explain_finding_endpoint(payload: FindingExplanationRequest):
+    """
+    Generates plain-language, evidence-grounded explanations for reviewer decisions.
+    """
+    return gemini_service.explain_finding(payload.model_dump())
+
+
+@app.post("/chat", response_model=ChatResponse)
+def chat_endpoint(payload: ChatRequest):
+    """
+    AICTE APH 2024-27 Scrutiny & Regulatory Verification Co-Pilot Chat.
+    Supports authenticated officers and reviewers with grounded statutory guidance.
+    """
+    history_dicts = [m.model_dump() for m in payload.history] if payload.history else []
+    return gemini_service.chat_completion(
+        message=payload.message,
+        history=history_dicts,
+        context=payload.context or {},
+    )
+
+
 @app.post("/forensics/analyze")
 async def analyze_document_forensics(file: UploadFile = File(...)):
     """
-    Blueprint Section 9.3, 9.4 & 9.5:
-    Computes SHA-256 hash, validates magic bytes, and computes experimental visual anomaly indicators:
-    - Error Level Analysis (ELA) recompression residual
-    - Laplacian variance sharpness (blur / legibility check)
-    - HSV colour mask for red/blue official stamp/seal candidates
-    Explicitly labels all visual indicators as EXPERIMENTAL_HEURISTIC_SIGNAL_ONLY.
+    Computes SHA-256 hash, validates magic bytes, and computes experimental visual anomaly indicators.
     """
     contents = await file.read()
     if len(contents) == 0:
@@ -188,7 +270,6 @@ async def analyze_document_forensics(file: UploadFile = File(...)):
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     sharpness = float(cv2.Laplacian(gray, cv2.CV_64F).var())
 
-    # Experimental ELA recompression difference at quality=90
     encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), 90]
     ok, enc_buf = cv2.imencode(".jpg", img, encode_param)
     ela_score = 0.0
@@ -197,7 +278,6 @@ async def analyze_document_forensics(file: UploadFile = File(...)):
         diff = cv2.absdiff(img, recomp)
         ela_score = float(np.mean(diff) * 4.5)
 
-    # HSV colour mask for blue/red stamp ink candidate
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
     blue_mask = cv2.inRange(hsv, np.array([95, 50, 50]), np.array([135, 255, 255]))
     red_mask1 = cv2.inRange(hsv, np.array([0, 50, 50]), np.array([10, 255, 255]))
@@ -251,24 +331,18 @@ async def analyze_document_forensics(file: UploadFile = File(...)):
 
 @app.post("/preprocess")
 async def preprocess_document(file: UploadFile = File(...)):
+    """
+    Performs verified image preprocessing transformations:
+    Grayscale, Gaussian denoising, CLAHE contrast enhancement, and real deskew angle calculation.
+    """
     contents = await file.read()
     if len(contents) == 0 or len(contents) > MAX_UPLOAD_BYTES:
         raise HTTPException(status_code=400, detail="Invalid file size")
-    nparr = np.frombuffer(contents, np.uint8)
-    img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-    if img is None:
-        raise HTTPException(status_code=400, detail="Invalid image file")
-
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    _ = cv2.GaussianBlur(gray, (5, 5), 0)
-    return {
-        "status": "SUCCESS",
-        "grayscale": True,
-        "denoised": True,
-        "deskew_angle_degrees": -1.2,
-        "contrast_enhanced": True,
-        "dpi": 300,
-    }
+    try:
+        metrics, _ = preprocess_image_pipeline(contents)
+        return metrics
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Image preprocessing failed: {e}")
 
 
 if __name__ == "__main__":

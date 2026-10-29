@@ -18,6 +18,10 @@ services:
     build: ./ai-service
     ports:
       - "8000:8000"
+    environment:
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-3.5-flash-lite}
+      - ALLOWED_CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000,http://arc-verify-web:3000
     restart: unless-stopped
 
 volumes:

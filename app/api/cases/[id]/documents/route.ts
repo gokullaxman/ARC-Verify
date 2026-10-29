@@ -7,7 +7,7 @@ import { getDossierRepository } from '@/repositories/dossier-repository';
 import { DocumentIntegrityService } from '@/services/assurance/document-integrity';
 import { AI_SERVICE_BASE_URL } from '@/lib/env';
 import { dbService } from '@/lib/db';
-import { DocumentCategory, DossierDocument } from '@/types';
+import { DocumentCategory, DossierDocument, ExtractedFieldCandidate } from '@/types';
 
 function extractPageCountFromBuffer(buffer: Buffer, mimeType: string): number {
   if (mimeType === 'application/pdf') {
@@ -119,34 +119,45 @@ export async function POST(
       lowerName.includes('receipt_bill') ||
       lowerName.includes('resume');
 
-    const classifiedCategory: DocumentCategory = isMismatched
+    let classifiedCategory: DocumentCategory = isMismatched
       ? 'UNKNOWN_UNCLASSIFIED'
       : declaredCategory;
 
+    let classificationConfidence = isMismatched ? 0.28 : 0.95;
+    let extractedTextSample = `Server-extracted text stream for ${sanitizedOriginalName} (${declaredCategory}).`;
     let processingStatus: 'ANALYZED' | 'SOURCE_UNAVAILABLE' = 'ANALYZED';
+    let aiPipelineData: any = null;
 
-    // Optional remote AI service analysis call server-side
+    // Optional remote AI & Gemini document pipeline call
     try {
-      const aiResponse = await fetch(`${AI_SERVICE_BASE_URL}/forensics/analyze`, {
+      const formData = new FormData();
+      const blob = new Blob([new Uint8Array(buffer)], { type: mimeType });
+      formData.append('file', blob, sanitizedOriginalName);
+      formData.append('declared_category', declaredCategory);
+
+      const aiResponse = await fetch(`${AI_SERVICE_BASE_URL}/pipeline/process`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
           'X-ARC-Verify-Internal': 'true',
         },
-        body: JSON.stringify({
-          documentId,
-          sha256,
-          byteSize,
-          mimeType,
-        }),
-        signal: AbortSignal.timeout(2000),
+        body: formData,
+        signal: AbortSignal.timeout(5000),
       });
 
-      if (!aiResponse.ok) {
+      if (aiResponse.ok) {
+        aiPipelineData = await aiResponse.json();
+        if (aiPipelineData?.classification?.category) {
+          classifiedCategory = aiPipelineData.classification.category as DocumentCategory;
+          classificationConfidence = aiPipelineData.classification.confidence ?? classificationConfidence;
+        }
+        if (aiPipelineData?.text_sample) {
+          extractedTextSample = aiPipelineData.text_sample;
+        }
+      } else {
         processingStatus = 'SOURCE_UNAVAILABLE';
       }
     } catch {
-      // Degrades gracefully to SOURCE_UNAVAILABLE if microservice is offline
+      // Degrades gracefully to local evaluation if microservice is offline
       processingStatus = 'SOURCE_UNAVAILABLE';
     }
 
@@ -155,7 +166,7 @@ export async function POST(
       caseId: id,
       declaredCategory,
       classifiedCategory,
-      classificationConfidence: isMismatched ? 0.28 : 0.95,
+      classificationConfidence,
       originalFilename: sanitizedOriginalName,
       originalStorageKey: privateStorageUri,
       derivedPreviewUrl: `/api/documents/${documentId}/file`,
@@ -168,7 +179,7 @@ export async function POST(
       uploadActorName: caller.name,
       uploadedAt: new Date().toISOString(),
       processingStatus: processingStatus === 'ANALYZED' ? 'ANALYZED' : 'FAILED_SAFE',
-      rawExtractedText: `Server-extracted text stream for ${sanitizedOriginalName} (${declaredCategory}).`,
+      rawExtractedText: extractedTextSample,
     };
 
     // Server-side integrity & forensics evaluation (includes digital signature inspection)
@@ -177,7 +188,66 @@ export async function POST(
       buffer,
     });
 
+    if (aiPipelineData?.signature_inspection && !newDoc.integrity.signatureInspection) {
+      newDoc.integrity.signatureInspection = aiPipelineData.signature_inspection;
+    }
+
     repo.addDocument(newDoc);
+
+    // Save structured extracted field candidates if provided by Gemini pipeline
+    if (aiPipelineData?.structured_extraction) {
+      const ext = aiPipelineData.structured_extraction;
+      const candidates: ExtractedFieldCandidate[] = [];
+
+      if (ext.institution_name?.value) {
+        candidates.push({
+          id: `field-${crypto.randomUUID()}`,
+          documentId,
+          caseId: id,
+          fieldName: 'institutionName',
+          fieldLabel: 'Institution Legal Name',
+          rawValue: String(ext.institution_name.value),
+          normalizedValue: String(ext.institution_name.value).trim(),
+          confidence: ext.institution_name.confidence ?? 0.95,
+          pageNumber: 1,
+          extractorVersion: 'Gemini-3.5-flash-lite',
+        });
+      }
+
+      if (ext.trust_name?.value) {
+        candidates.push({
+          id: `field-${crypto.randomUUID()}`,
+          documentId,
+          caseId: id,
+          fieldName: 'trustName',
+          fieldLabel: 'Trust / Society Name',
+          rawValue: String(ext.trust_name.value),
+          normalizedValue: String(ext.trust_name.value).trim(),
+          confidence: ext.trust_name.confidence ?? 0.95,
+          pageNumber: 1,
+          extractorVersion: 'Gemini-3.5-flash-lite',
+        });
+      }
+
+      if (ext.land_area?.value) {
+        candidates.push({
+          id: `field-${crypto.randomUUID()}`,
+          documentId,
+          caseId: id,
+          fieldName: 'landAreaAcres',
+          fieldLabel: 'Total Land Area',
+          rawValue: String(ext.land_area.value),
+          normalizedValue: String(ext.land_area.value).trim(),
+          confidence: ext.land_area.confidence ?? 0.95,
+          pageNumber: 1,
+          extractorVersion: 'Gemini-3.5-flash-lite',
+        });
+      }
+
+      for (const field of candidates) {
+        repo.saveExtractedField(field);
+      }
+    }
 
     dbService.appendAuditEvent({
       caseId: id,

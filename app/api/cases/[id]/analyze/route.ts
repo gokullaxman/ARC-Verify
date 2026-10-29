@@ -6,6 +6,7 @@ import { getDossierRepository } from '@/repositories/dossier-repository';
 import { RuleRepository } from '@/repositories/rule-repository';
 import { ComplianceEngine } from '@/services/assurance/compliance-engine';
 import { dbService } from '@/lib/db';
+import { AI_SERVICE_BASE_URL } from '@/lib/env';
 import { ReviewDecision, ReviewOutcome, DossierStatus, ProcessingRun } from '@/types';
 
 export async function POST(
@@ -55,6 +56,39 @@ export async function POST(
         extractedFields,
         runId,
       });
+
+      // Optional: Enrich priority findings with plain-language Gemini explanations
+      try {
+        const priorityFindings = evaluation.findings.filter(
+          f => f.status === 'FAIL' || f.status === 'WARNING'
+        );
+        for (const f of priorityFindings.slice(0, 3)) {
+          const explainRes = await fetch(`${AI_SERVICE_BASE_URL}/findings/explain`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-ARC-Verify-Internal': 'true',
+            },
+            body: JSON.stringify({
+              rule_id: f.ruleCode,
+              rule_title: f.ruleTitle,
+              outcome: f.status,
+              severity: f.severity,
+              message: f.message,
+              details: f.evidence?.[0] || {},
+            }),
+            signal: AbortSignal.timeout(2500),
+          });
+          if (explainRes.ok) {
+            const exp = await explainRes.json();
+            if (exp.plain_language_explanation) {
+              f.remediationHint = `${exp.plain_language_explanation} Action: ${exp.recommended_reviewer_action}`;
+            }
+          }
+        }
+      } catch {
+        // Safe degrade if AI service is offline
+      }
 
       const caseStatus: DossierStatus =
         evaluation.summary.blockingDeficienciesCount > 0
