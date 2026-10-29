@@ -23,3 +23,4 @@ Decouple legacy land-record app completely, harden identity/authorization/sessio
 2. `npm test` passes all tests including 7 new security/RBAC/audit tests.
 3. `npm run build` succeeds cleanly.
 4. Legacy land-record endpoints, mock-data, and in-memory store completely isolated or removed.
+

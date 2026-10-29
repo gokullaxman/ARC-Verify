@@ -7,6 +7,7 @@ import { useAuth } from '@/components/auth/AuthContext';
 import { AccessDenied } from '@/components/auth/AccessDenied';
 import { PermissionKey, UserRole } from '@/types';
 import { Loader2 } from 'lucide-react';
+import { usePageHeaderContext } from './PageHeaderContext';
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -18,13 +19,19 @@ interface AppLayoutProps {
 
 export const AppLayout: React.FC<AppLayoutProps> = ({
   children,
-  title,
-  subtitle,
-  requiredPermission,
-  requiredRoles,
+  title: propTitle,
+  subtitle: propSubtitle,
+  requiredPermission: propRequiredPermission,
+  requiredRoles: propRequiredRoles,
 }) => {
   const { currentUser, hasPermission, hasRole, loading } = useAuth();
   const [sidebarOpen, setSidebarOpen] = React.useState(false);
+  const { header } = usePageHeaderContext();
+
+  const title = propTitle ?? header.title;
+  const subtitle = propSubtitle ?? header.subtitle;
+  const requiredPermission = propRequiredPermission ?? header.requiredPermission;
+  const requiredRoles = propRequiredRoles ?? header.requiredRoles;
 
   if (loading) {
     return (

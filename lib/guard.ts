@@ -88,3 +88,4 @@ export function sanitizeUser<T extends Partial<User>>(user: T): Omit<T, 'passwor
   delete (sanitized as any).passwordHash;
   return sanitized;
 }
+
