@@ -37,6 +37,7 @@ export default function CaseDetailPage() {
   const [simFdrLakhs, setSimFdrLakhs] = useState<string>('40');
   const [simFireExpiry, setSimFireExpiry] = useState<string>('2027-12-31');
   const [simResult, setSimResult] = useState<any>(null);
+  const [runningSim, setRunningSim] = useState<boolean>(false);
 
   usePageHeader({
     title: loading || !data
@@ -101,31 +102,38 @@ export default function CaseDetailPage() {
   }
 
   async function handleRunWhatIf() {
-    const res = await fetch(`/api/cases/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: 'what_if_simulate',
-        hypotheticalFormOverrides: {
-          declaredLandAreaAcres: parseFloat(simLandAcres),
-          declaredBuiltUpAreaSqm: parseFloat(simBuiltUpSqm),
-          affidavitStampDenominationRs: parseFloat(simStampRs),
-          fdrAmountLakhs: parseFloat(simFdrLakhs),
-          fireSafetyExpiryDate: simFireExpiry,
-        },
-        hypotheticalAddedCategories: [
-          'APPLICATION_FORM',
-          'LAND_OWNERSHIP_CERTIFICATE',
-          'BUILDING_PLAN_APPROVAL',
-          'FIRE_SAFETY_NOC',
-          'NON_JUDICIAL_AFFIDAVIT',
-          'BANK_FDR_CORPUS_RECEIPT',
-        ],
-      }),
-    });
-    const json = await res.json();
-    if (json.success) {
-      setSimResult(json.data);
+    setRunningSim(true);
+    try {
+      const res = await fetch(`/api/cases/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'what_if_simulate',
+          hypotheticalFormOverrides: {
+            declaredLandAreaAcres: parseFloat(simLandAcres) || 0,
+            declaredBuiltUpAreaSqm: parseFloat(simBuiltUpSqm) || 0,
+            affidavitStampDenominationRs: parseFloat(simStampRs) || 0,
+            fdrAmountLakhs: parseFloat(simFdrLakhs) || 0,
+            fireSafetyExpiryDate: simFireExpiry,
+          },
+          hypotheticalAddedCategories: [
+            'APPLICATION_FORM',
+            'LAND_OWNERSHIP_CERTIFICATE',
+            'BUILDING_PLAN_APPROVAL',
+            'FIRE_SAFETY_NOC',
+            'NON_JUDICIAL_AFFIDAVIT',
+            'BANK_FDR_CORPUS_RECEIPT',
+          ],
+        }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        setSimResult(json.data);
+      }
+    } catch (err) {
+      console.error('What-If simulation failed:', err);
+    } finally {
+      setRunningSim(false);
     }
   }
 
@@ -146,6 +154,9 @@ export default function CaseDetailPage() {
     reports,
   } = data;
   const latestReport = reports?.[0];
+  const remediationItems: any[] = Array.isArray(remediationPlan)
+    ? remediationPlan
+    : (remediationPlan?.items || []);
 
   const getOutcomeBadge = (status: string) => {
     switch (status) {
@@ -458,46 +469,122 @@ export default function CaseDetailPage() {
                     className="w-full border border-slate-300 rounded px-2.5 py-1.5"
                   />
                 </div>
+                <div className="col-span-2">
+                  <label className="block font-semibold text-slate-700 mb-1">Hypothetical Fire NOC Expiry Date</label>
+                  <input
+                    type="date"
+                    value={simFireExpiry}
+                    onChange={e => setSimFireExpiry(e.target.value)}
+                    className="w-full border border-slate-300 rounded px-2.5 py-1.5"
+                  />
+                </div>
               </div>
               <button
                 onClick={handleRunWhatIf}
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-xs font-semibold"
+                disabled={runningSim}
+                className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white rounded text-xs font-semibold flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
               >
-                Run What-If Simulation (Include All Mandatory Annexures)
+                <Sliders className="w-3.5 h-3.5" />
+                {runningSim ? 'Running Simulation...' : 'Run What-If Simulation (Include All Mandatory Annexures)'}
               </button>
 
-              {simResult && (
-                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded text-xs space-y-1">
-                  <div className="font-bold text-emerald-950">
-                    Simulated Recommended Outcome: {simResult.simulatedCaseState}
+              {simResult && (() => {
+                const summary = simResult.simulatedFindingSummary || simResult.summary || {};
+                const targetState =
+                  summary.recommendedCaseState ||
+                  simResult.simulatedCaseState ||
+                  (summary.failedCount === 0 ? 'READY_FOR_OFFICER_REVIEW' : 'NEEDS_INFORMATION');
+                return (
+                  <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-xs space-y-2">
+                    <div className="flex items-center justify-between font-bold">
+                      <span className="text-emerald-950">
+                        Simulated Recommended Outcome:
+                      </span>
+                      <span className="px-2 py-0.5 rounded font-mono text-[11px] bg-emerald-200 text-emerald-900 border border-emerald-300">
+                        {targetState}
+                      </span>
+                    </div>
+                    <div className="font-mono text-[11px] text-emerald-800 bg-white/80 p-2 rounded border border-emerald-200 flex flex-wrap gap-x-3 gap-y-1">
+                      <span>PASS: <strong className="text-emerald-700">{summary.passedCount ?? 0}</strong></span>
+                      <span>FAIL: <strong className="text-rose-700">{summary.failedCount ?? 0}</strong></span>
+                      <span>WARNING: <strong className="text-amber-700">{summary.warningCount ?? 0}</strong></span>
+                      <span>INCONCLUSIVE: <strong className="text-slate-700">{summary.inconclusiveCount ?? 0}</strong></span>
+                      <span>BLOCKERS: <strong className="text-rose-800">{summary.blockingDeficienciesCount ?? 0}</strong></span>
+                    </div>
+
+                    {simResult.deltaSummary && (
+                      <div className="pt-1.5 border-t border-emerald-200/80 text-[11px] space-y-1">
+                        <div className="font-semibold text-emerald-900 flex items-center gap-1">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                          Simulation Impact:
+                        </div>
+                        <p className="text-emerald-800">
+                          • Critical Blockers Resolved: <strong>{simResult.deltaSummary.criticalBlockersResolved ?? 0}</strong>
+                        </p>
+                        {simResult.deltaSummary.rulesNewlyPassing?.length > 0 && (
+                          <p className="text-emerald-800">
+                            • Newly Passing Rules: <span className="font-mono font-bold">{simResult.deltaSummary.rulesNewlyPassing.join(', ')}</span>
+                          </p>
+                        )}
+                        {simResult.deltaSummary.rulesRemainingDeficient?.length > 0 && (
+                          <p className="text-rose-800">
+                            • Remaining Deficiencies: <span className="font-mono font-bold">{simResult.deltaSummary.rulesRemainingDeficient.join(', ')}</span>
+                          </p>
+                        )}
+                      </div>
+                    )}
                   </div>
-                  <div className="font-mono text-[11px] text-emerald-800">
-                    PASS: {simResult.summary.passedCount} | FAIL: {simResult.summary.failedCount} | WARNING:{' '}
-                    {simResult.summary.warningCount} | INCONCLUSIVE: {simResult.summary.inconclusiveCount}
-                  </div>
-                </div>
-              )}
+                );
+              })()}
             </div>
 
             <div className="bg-white border border-slate-200 rounded-lg p-4 space-y-3 shadow-2xs">
-              <h3 className="text-xs font-bold text-slate-900 uppercase">
-                Prioritized Deficiency Remediation Action Plan ({remediationPlan.length})
-              </h3>
-              {remediationPlan.length === 0 ? (
-                <p className="text-xs text-emerald-700">Zero open deficiencies requiring remediation.</p>
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-bold text-slate-900 uppercase">
+                  Prioritized Deficiency Remediation Action Plan ({remediationItems.length})
+                </h3>
+                {remediationPlan?.criticalBlockers !== undefined && remediationPlan.criticalBlockers > 0 && (
+                  <span className="text-[10px] font-mono px-2 py-0.5 bg-rose-100 text-rose-800 rounded font-bold">
+                    {remediationPlan.criticalBlockers} Critical Blocker{remediationPlan.criticalBlockers > 1 ? 's' : ''}
+                  </span>
+                )}
+              </div>
+              {remediationItems.length === 0 ? (
+                <div className="p-4 bg-emerald-50 border border-emerald-200 rounded text-center space-y-1">
+                  <p className="text-xs font-semibold text-emerald-800">Zero open deficiencies requiring remediation.</p>
+                  <p className="text-[11px] text-emerald-600">All mandatory statutory annexures and handbook thresholds are satisfied.</p>
+                </div>
               ) : (
-                remediationPlan.map((rem: any, idx: number) => (
-                  <div key={idx} className="p-3 bg-slate-50 border border-slate-200 rounded text-xs space-y-1">
-                    <div className="flex items-center justify-between font-mono font-bold">
-                      <span className="text-rose-700">
-                        [{rem.priority}] {rem.ruleCode}: {rem.ruleTitle}
-                      </span>
-                      <span>{rem.currentOutcome}</span>
+                <div className="space-y-2.5 max-h-[520px] overflow-y-auto pr-1">
+                  {remediationItems.map((rem: any, idx: number) => (
+                    <div key={idx} className="p-3 bg-slate-50 border border-slate-200 rounded text-xs space-y-1.5 shadow-2xs">
+                      <div className="flex items-center justify-between font-mono font-bold">
+                        <span className="text-rose-700">
+                          [{rem.severity || rem.priority || 'HIGH'}] {rem.ruleCode}: {rem.ruleTitle}
+                        </span>
+                        <span className={`px-2 py-0.5 rounded text-[10px] ${
+                          (rem.findingStatus || rem.currentOutcome) === 'FAIL'
+                            ? 'bg-rose-100 text-rose-800 border border-rose-300'
+                            : 'bg-amber-100 text-amber-800 border border-amber-300'
+                        }`}>
+                          {rem.findingStatus || rem.currentOutcome || 'FAIL'}
+                        </span>
+                      </div>
+                      {rem.deficiencySummary && (
+                        <p className="text-slate-600 font-medium leading-relaxed">{rem.deficiencySummary}</p>
+                      )}
+                      <div className="p-2 bg-indigo-50 border border-indigo-200 rounded text-indigo-950 font-medium">
+                        <strong>Remediation Action:</strong> {rem.remediationAction || rem.requiredApplicantAction}
+                      </div>
+                      <div className="flex items-center justify-between text-[10px] font-mono text-slate-500 pt-0.5">
+                        <span>Source: {rem.statutoryReference || rem.sourceClause || 'AICTE APH 2024–27'}</span>
+                        {rem.estimatedResolutionDays && (
+                          <span className="text-slate-600 font-semibold">Est. Resolution: ~{rem.estimatedResolutionDays} days</span>
+                        )}
+                      </div>
                     </div>
-                    <p className="text-slate-700">{rem.requiredApplicantAction}</p>
-                    <p className="text-[10px] font-mono text-slate-500">Source: {rem.sourceClause}</p>
-                  </div>
-                ))
+                  ))}
+                </div>
               )}
             </div>
           </div>
