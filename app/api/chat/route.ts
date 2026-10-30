@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Sanitize conversation history (max 15 turns)
-    const sanitizedHistory = (Array.isArray(history) ? history : [])
+    const sanitizedHistory: IncomingChatMessage[] = (Array.isArray(history) ? history : [])
       .slice(-15)
       .map(item => ({
         role: item.role === 'assistant' ? 'assistant' : item.role === 'system' ? 'system' : 'user',
@@ -133,7 +133,25 @@ export async function POST(request: NextRequest) {
       console.warn(`AI Service /chat unreachable: ${fetchErr?.message || fetchErr}`);
     }
 
-    // 5. In-process fallback if AI microservice is temporarily unavailable
+    // 5. Direct Gemini API call if key is available in environment (ideal for Vercel Serverless)
+    if (process.env.GEMINI_API_KEY) {
+      try {
+        const directGemini = await generateDirectGeminiChat(message, sanitizedHistory, enrichedContext);
+        if (directGemini) {
+          return NextResponse.json({
+            success: true,
+            reply: directGemini.reply,
+            suggested_actions: directGemini.suggested_actions,
+            sources: directGemini.sources,
+            direct_gemini: true,
+          });
+        }
+      } catch (geminiErr: any) {
+        console.warn(`Direct Gemini API fallback failed: ${geminiErr?.message || geminiErr}`);
+      }
+    }
+
+    // 6. In-process fallback if AI microservice and direct Gemini are offline
     const fallbackReply = generateInProcessFallback(message, caller.role);
     return NextResponse.json({
       success: true,
@@ -145,6 +163,75 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     return handleRouteError(error);
   }
+}
+
+async function generateDirectGeminiChat(
+  message: string,
+  history: IncomingChatMessage[],
+  context: Record<string, any>
+) {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) return null;
+
+  const model = process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite';
+  const systemInstruction =
+    'You are the ARC-Verify AI Assistant, an intelligent co-pilot for AICTE Approval Scrutiny ' +
+    'and Regulatory Verification (Smart India Hackathon 2026, Problem Statement 26261).\n' +
+    'Your role is to assist scrutiny officers, compliance auditors, applicants, and administrators ' +
+    'with navigating the application, understanding AICTE Approval Process Handbook (APH 2024–27) standards, ' +
+    'interpreting verification findings, verifying audit ledger integrity, and resolving document discrepancies.\n' +
+    'Professional, concise, authoritative, and direct. Base your responses strictly on statutory standards and system evidence.';
+
+  const promptParts: string[] = [];
+  if (context) {
+    const ctxLines: string[] = [];
+    if (context.user_role) ctxLines.push(`User Role: ${context.user_role}`);
+    if (context.case_id) ctxLines.push(`Active Case: ${context.case_id} (${context.case_title || ''}) - Status: ${context.case_status || ''}`);
+    if (context.current_page) ctxLines.push(`Current Page: ${context.current_page}`);
+    if (ctxLines.length > 0) promptParts.push('Context:\n' + ctxLines.join('\n'));
+  }
+
+  if (history && history.length > 0) {
+    promptParts.push('Recent Conversation:');
+    for (const turn of history.slice(-6)) {
+      promptParts.push(`${turn.role === 'assistant' ? 'Assistant' : 'User'}: ${turn.content}`);
+    }
+  }
+
+  promptParts.push(`User: ${message}`);
+  promptParts.push('ARC-Verify Assistant:');
+
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+
+  const res = await fetch(endpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: promptParts.join('\n\n') }] }],
+      systemInstruction: { parts: [{ text: systemInstruction }] },
+      generationConfig: { temperature: 0.2 },
+    }),
+    signal: AbortSignal.timeout(15000),
+  });
+
+  if (!res.ok) return null;
+  const data = await res.json();
+  const replyText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (!replyText) return null;
+
+  const actions: string[] = [];
+  const q = (message + ' ' + replyText).toLowerCase();
+  if (q.includes('land') || q.includes('acre')) actions.push('Review Land Title Deed', 'Check Khasra / Survey Numbers');
+  if (q.includes('faculty') || q.includes('fsr')) actions.push('Inspect Faculty Roster', 'Verify EPF Disbursal Records');
+  if (q.includes('fire') || q.includes('noc')) actions.push('Verify Fire NOC Validity', 'Inspect Building Setbacks');
+  if (q.includes('audit') || q.includes('ledger')) actions.push('View Tamper-Evident Ledger', 'Verify HMAC Hash Chain');
+  if (actions.length === 0) actions.push('Run Automated Dossier Scrutiny', 'View Case Concordance Summary');
+
+  return {
+    reply: replyText.trim(),
+    suggested_actions: actions.slice(0, 3),
+    sources: ['AICTE Approval Process Handbook (APH 2024–27)'],
+  };
 }
 
 function generateInProcessFallback(message: string, role: string) {

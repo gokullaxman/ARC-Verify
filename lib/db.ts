@@ -256,15 +256,39 @@ export class DatabaseService {
   public dbPath: string;
 
   private constructor(customPath?: string) {
-    const dbPath = customPath || process.env.ARC_VERIFY_DB_PATH || path.join(process.cwd(), '.arc-verify-data', 'arc_verify.db');
+    const isServerless = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
+    const defaultPath = isServerless
+      ? path.join('/tmp', 'arc_verify.db')
+      : path.join(process.cwd(), '.arc-verify-data', 'arc_verify.db');
+    const dbPath = customPath || process.env.ARC_VERIFY_DB_PATH || defaultPath;
     this.dbPath = dbPath;
     const dbDir = path.dirname(dbPath);
     if (!fs.existsSync(dbDir)) {
-      fs.mkdirSync(dbDir, { recursive: true });
+      try {
+        fs.mkdirSync(dbDir, { recursive: true });
+      } catch {
+        // Safe fallback in read-only environments
+      }
+    }
+
+    // On Vercel / serverless: copy bundled repository template if available and /tmp db does not exist
+    if (isServerless && !fs.existsSync(dbPath)) {
+      const bundledPath = path.join(process.cwd(), '.arc-verify-data', 'arc_verify.db');
+      if (fs.existsSync(bundledPath)) {
+        try {
+          fs.copyFileSync(bundledPath, dbPath);
+        } catch {
+          // If copy fails, initSchema and seedDefaults will seed it
+        }
+      }
     }
 
     this.db = new Database(dbPath, { timeout: 20000 });
-    this.db.pragma('journal_mode = WAL');
+    try {
+      this.db.pragma('journal_mode = WAL');
+    } catch {
+      this.db.pragma('journal_mode = DELETE');
+    }
     this.db.pragma('busy_timeout = 20000');
     this.db.pragma('foreign_keys = ON');
 
@@ -279,7 +303,11 @@ export class DatabaseService {
   }
 
   public static getInstance(customPath?: string): DatabaseService {
-    const resolved = customPath || process.env.ARC_VERIFY_DB_PATH || path.join(process.cwd(), '.arc-verify-data', 'arc_verify.db');
+    const isServerless = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
+    const defaultPath = isServerless
+      ? path.join('/tmp', 'arc_verify.db')
+      : path.join(process.cwd(), '.arc-verify-data', 'arc_verify.db');
+    const resolved = customPath || process.env.ARC_VERIFY_DB_PATH || defaultPath;
     if (!DatabaseService.instances.has(resolved)) {
       DatabaseService.instances.set(resolved, new DatabaseService(resolved));
     }

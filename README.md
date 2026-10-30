@@ -278,15 +278,36 @@ Visit **`http://localhost:3000`** and log in with any demo account.
 
 ---
 
-## 10. Production Deployment (Docker & Cloud Ready)
+## 10. Production Deployment
 
-ARC-Verify is packaged for deployment using Docker and Docker Compose, compatible with national cloud providers such as **NIC MeghRaj**:
+### 10.1 Vercel One-Click Serverless Deployment (Zero-Config Ready)
+
+ARC-Verify is 100% pre-configured for Vercel:
+1. **Import Project:** Push or link `https://github.com/gokullaxman/ARC-Verify.git` in your Vercel Dashboard.
+2. **Framework Preset:** Select **Next.js** (detected automatically via `vercel.json`).
+3. **Configure Environment Variables:** In Vercel Project Settings $\rightarrow$ Environment Variables, configure:
+   ```env
+   ARC_VERIFY_SESSION_SECRET=your_minimum_32_character_high_entropy_secret_key_2026
+   ARC_VERIFY_AUDIT_KEY=your_audit_hmac_ledger_secret_key_here
+   COOKIE_SECURE=true
+   GEMINI_API_KEY=your_gemini_api_key_here
+   GEMINI_MODEL=gemini-3.5-flash-lite
+   ```
+4. **Deploy:** Click **Deploy**. Vercel will install dependencies via `npm ci` and compile with `next build`.
+   * **Serverless SQLite:** Automatically creates and seeds `/tmp/arc_verify.db` with all 5 demo accounts and synthetic dossiers.
+   * **Direct Gemini AI Chat:** Next.js `/api/chat` communicates directly with Google Gemini REST API—no external Python service required on Vercel!
+
+---
+
+### 10.2 Multi-Tier Docker Deployment (NIC MeghRaj / National Cloud)
+
+For sovereign deployments running the full Python OpenCV and pyHanko microservices:
 
 ```bash
 docker compose up -d --build
 ```
 
-### Container Topology
+#### Container Topology
 * **`arc-verify-web` (Port 3000):** Optimized Next.js 16 container running in non-root user mode.
 * **`arc-verify-ai` (Port 8000):** FastAPI container pre-configured with Tesseract OCR, OpenCV, pyHanko, and Google GenAI SDK.
 * **`arc_verify_data` (Volume):** Persistent Docker volume mounting SQLite databases and encrypted private uploads.
