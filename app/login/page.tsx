@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/components/auth/AuthContext';
 import {
   Shield,
   KeyRound,
@@ -67,6 +68,7 @@ const DEMO_PRESETS = [
 
 export default function LoginPage() {
   const router = useRouter();
+  const { setUser } = useAuth();
   // Default demo mode to true on Vercel/production unless explicitly disabled with NEXT_PUBLIC_DEMO_MODE=false
   const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE !== 'false';
 
@@ -101,8 +103,13 @@ export default function LoginPage() {
         return;
       }
 
-      router.push('/cases');
-      router.refresh();
+      // Immediately synchronize authenticated user into client AuthContext
+      if (data.data) {
+        setUser(data.data);
+      }
+
+      // Direct full-window navigation ensures serverless session cookies and layouts load cleanly
+      window.location.href = '/cases';
     } catch (err: any) {
       setError(err.message || 'An unexpected error occurred during authentication.');
       setLoading(false);

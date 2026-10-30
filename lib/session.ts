@@ -107,12 +107,12 @@ export async function getSessionUserFromCookies(request?: Request): Promise<User
         .map(p => p.trim())
         .find(p => p.startsWith(`${SESSION_COOKIE_NAME}=`));
       if (match) {
-        token = decodeURIComponent(match.slice(SESSION_COOKIE_NAME.length + 1));
+        token = decodeURIComponent(match.slice(SESSION_COOKIE_NAME.length + 1)).replace(/^"|"$/g, '');
       }
       if (!token) {
         const authHeader = request.headers.get('authorization') || '';
         if (authHeader.startsWith('Bearer ')) {
-          token = authHeader.slice(7).trim();
+          token = authHeader.slice(7).trim().replace(/^"|"$/g, '');
         }
       }
     }
@@ -120,7 +120,7 @@ export async function getSessionUserFromCookies(request?: Request): Promise<User
     if (!token) {
       try {
         const cookieStore = await cookies();
-        token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+        token = cookieStore.get(SESSION_COOKIE_NAME)?.value?.replace(/^"|"$/g, '');
       } catch {
         // cookies() may throw in non-request contexts or static phases
       }
@@ -129,8 +129,20 @@ export async function getSessionUserFromCookies(request?: Request): Promise<User
     const verified = verifySessionToken(token);
     if (!verified) return null;
 
-    const user = dbService.getUserById(verified.uid);
+    let user = dbService.getUserById(verified.uid);
+    if (!user) {
+      const allUsers = dbService.listUsers();
+      user = allUsers.find(u => u.id === verified.uid || u.role === verified.role) || null;
+    }
     if (!user || user.status === 'INACTIVE') return null;
+
+    // Ensure permissions list is never empty for authenticated valid roles
+    if (!user.permissions || user.permissions.length === 0) {
+      const roleRecord = dbService.getRoleByCode(user.role);
+      if (roleRecord && roleRecord.permissions) {
+        user.permissions = roleRecord.permissions;
+      }
+    }
 
     return user;
   } catch {

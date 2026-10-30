@@ -10,6 +10,7 @@ interface AuthContextType {
   hasPermission: (permission: PermissionKey) => boolean;
   hasRole: (roles: UserRole[]) => boolean;
   refreshSession: () => Promise<void>;
+  setUser: (user: User | null) => void;
   logout: () => Promise<void>;
 }
 
@@ -19,6 +20,7 @@ const AuthContext = createContext<AuthContextType>({
   hasPermission: () => false,
   hasRole: () => false,
   refreshSession: async () => {},
+  setUser: () => {},
   logout: async () => {},
 });
 
@@ -28,7 +30,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const fetchSession = async () => {
     try {
-      const res = await fetch('/api/auth/me');
+      setLoading(true);
+      const res = await fetch('/api/auth/me', {
+        cache: 'no-store',
+        headers: { 'Cache-Control': 'no-cache' },
+      });
       if (res.ok) {
         const data = await res.json();
         if (data.success && data.data) {
@@ -42,6 +48,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } finally {
       setLoading(false);
     }
+  };
+
+  const setUser = (user: User | null) => {
+    setCurrentUser(user);
+    setLoading(false);
   };
 
   useEffect(() => {
@@ -76,6 +87,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         hasPermission: hasPerm,
         hasRole,
         refreshSession: fetchSession,
+        setUser,
         logout,
       }}
     >

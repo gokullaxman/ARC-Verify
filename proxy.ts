@@ -55,7 +55,7 @@ async function verifySignedCookieEdge(token: string | undefined): Promise<{ uid:
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const rawToken = request.cookies.get(SESSION_COOKIE_NAME)?.value;
+  const rawToken = request.cookies.get(SESSION_COOKIE_NAME)?.value?.replace(/^"|"$/g, '');
   const session = await verifySignedCookieEdge(rawToken);
 
   const isPublicPath =

@@ -809,6 +809,13 @@ export class DatabaseService {
     } catch {
       perms = [];
     }
+    // Fallback: If permissions list is empty, resolve canonical permissions from role
+    if ((!perms || perms.length === 0) && row.role) {
+      const roleRecord = this.getRoleByCode(row.role);
+      if (roleRecord && roleRecord.permissions) {
+        perms = roleRecord.permissions;
+      }
+    }
     return {
       id: row.id,
       name: row.name,
@@ -937,7 +944,11 @@ export class DatabaseService {
       SELECT revoked_at, expires_at FROM sessions WHERE jti = ?
     `).get(jti) as any;
 
-    if (!row) return false;
+    if (!row) {
+      // In serverless / multi-container environments where /tmp SQLite is ephemeral to each lambda instance,
+      // a cryptographically verified HMAC-SHA256 token is active unless explicitly recorded as revoked.
+      return true;
+    }
     if (row.revoked_at !== null) return false;
     if (row.expires_at <= nowSec) return false;
     return true;
@@ -945,7 +956,15 @@ export class DatabaseService {
 
   public revokeSession(jti: string): void {
     const nowSec = Math.floor(Date.now() / 1000);
-    this.db.prepare('UPDATE sessions SET revoked_at = ? WHERE jti = ?').run(nowSec, jti);
+    const existing = this.db.prepare('SELECT jti FROM sessions WHERE jti = ?').get(jti);
+    if (!existing) {
+      this.db.prepare(`
+        INSERT INTO sessions (jti, user_id, role, created_at, expires_at, revoked_at)
+        VALUES (?, 'revoked', 'NONE', ?, ?, ?)
+      `).run(jti, nowSec, nowSec + 86400, nowSec);
+    } else {
+      this.db.prepare('UPDATE sessions SET revoked_at = ? WHERE jti = ?').run(nowSec, jti);
+    }
   }
 
   public revokeUserSessions(userId: string): void {

@@ -86,8 +86,10 @@ export async function POST(req: NextRequest) {
 
     // Issue signed session token with jti tracked in DB
     const signedToken = signSessionToken({ id: user.id, role: user.role });
+    const cookieOptions = getSessionCookieOptions();
+
     const cookieStore = await cookies();
-    cookieStore.set(SESSION_COOKIE_NAME, signedToken, getSessionCookieOptions());
+    cookieStore.set(SESSION_COOKIE_NAME, signedToken, cookieOptions);
     cookieStore.delete('sih_user_id');
     cookieStore.delete('sih_user_role');
 
@@ -105,11 +107,18 @@ export async function POST(req: NextRequest) {
       reason: `Authenticated login via verified scrypt password hash and signed session for ${user.name} (${user.role}).`,
     });
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       success: true,
       data: sanitizeUser(user),
       message: 'Login successful',
     });
+
+    // Also attach cookie directly to the response object to guarantee header delivery in serverless lambdas
+    response.cookies.set(SESSION_COOKIE_NAME, signedToken, cookieOptions);
+    response.cookies.delete('sih_user_id');
+    response.cookies.delete('sih_user_role');
+
+    return response;
   } catch (error) {
     console.error('[Login Error]:', error);
     return NextResponse.json(
