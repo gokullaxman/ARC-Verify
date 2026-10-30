@@ -41,6 +41,6 @@ export const COOKIE_SECURE =
   (process.env.COOKIE_SECURE !== 'false' && process.env.NODE_ENV === 'production');
 
 export const IS_DEMO_MODE =
-  process.env.NEXT_PUBLIC_DEMO_MODE === 'true' ||
-  process.env.ARC_VERIFY_DEMO_MODE === 'true';
+  process.env.NEXT_PUBLIC_DEMO_MODE !== 'false' &&
+  process.env.ARC_VERIFY_DEMO_MODE !== 'false';
 
