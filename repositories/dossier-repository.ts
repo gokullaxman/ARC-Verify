@@ -116,6 +116,13 @@ export class DossierRepository {
     for (const f of seeded.extractedFields) {
       this.db.saveExtractedField(f);
     }
+    for (const r of seeded.runs) {
+      const runFindings = seeded.findings.filter(f => f.runId === r.id);
+      this.db.saveProcessingRun(r, runFindings);
+    }
+    for (const dec of seeded.decisions) {
+      this.db.saveReviewDecision(dec);
+    }
     for (const ev of seeded.auditInputs) {
       this.auditRepo.appendEvent(ev);
     }

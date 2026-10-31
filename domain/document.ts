@@ -13,14 +13,17 @@
 export type DocumentCategory =
   | 'APPLICATION_FORM'
   | 'LAND_OWNERSHIP_CERTIFICATE'
+  | 'LAND_TITLE_DEED'
   | 'BUILDING_PLAN_APPROVAL'
   | 'FIRE_SAFETY_NOC'
   | 'BANK_FDR_CORPUS_RECEIPT'
+  | 'RECEIPT_OR_FEE_CHALLAN'
   | 'TRUST_SOCIETY_DEED'
   | 'NON_JUDICIAL_AFFIDAVIT'
   | 'PREVIOUS_EOA_LETTER'
   | 'FACULTY_COMPLIANCE_ROSTER'
   | 'ACCREDITATION_CERTIFICATE'
+  | 'GOVERNMENT_ORDER_APPROVAL'
   | 'OTHER_SUPPORTING'
   | 'UNKNOWN_UNCLASSIFIED';
 
@@ -28,17 +31,23 @@ export type DigitalSignatureState =
   | 'SIGNATURE_VALID'
   | 'SIGNATURE_INVALID'
   | 'UNSIGNED'
+  | 'NOT_SIGNED'
   | 'SIGNATURE_UNAVAILABLE'
   | 'UNSUPPORTED_FORMAT';
 
 export type TrustChainStatus =
   | 'TRUSTED_ROOT'
+  | 'UNTRUSTED_ROOT'
   | 'SELF_SIGNED_OR_UNVERIFIED_CHAIN'
+  | 'NO_SIGNATURE'
   | 'NOT_APPLICABLE';
 
 export type ForensicStatus =
   | 'NO_ANOMALY_DETECTED'
   | 'ANOMALY_FLAGGED'
+  | 'FORGERY_INDICATORS_DETECTED'
+  | 'METADATA_SUSPICIOUS'
+  | 'METADATA_ANOMALY_SUSPECTED'
   | 'LOW_IMAGE_QUALITY';
 
 export type DocumentProcessingStatus =
@@ -58,7 +67,7 @@ export interface SignatureInspectionResult {
   cryptographicDigestValid?: boolean;
   trustChainStatus: TrustChainStatus;
   validationMethod: string;
-  limitationsNote: string;
+  limitationsNote?: string;
   summary?: string;
 }
 
@@ -79,12 +88,12 @@ export interface ForensicIndicator {
 export interface DocumentIntegrity {
   sha256AtIngestion: string;
   priorTrustedHash?: string;
-  hashComparisonStatus: 'MATCH' | 'HASH_MISMATCH_ALTERED_BYTES' | 'NO_PRIOR_BASELINE';
+  hashComparisonStatus: 'MATCH' | 'HASH_MISMATCH_ALTERED_BYTES' | 'NO_PRIOR_BASELINE' | 'FORGERY_INDICATORS_DETECTED';
   pdfProducerMetadata?: string;
   metadataWarnings: string[];
   signatureInspection: SignatureInspectionResult;
   overallForensicStatus: ForensicStatus;
-  forensicIndicators: ForensicIndicator[];
+  forensicIndicators: Array<ForensicIndicator | string | any>;
 }
 
 export interface DossierDocument {

@@ -19,7 +19,7 @@ import {
   ExternalIntegrationEvent,
   DossierStatus,
 } from '@/types';
-import { INITIAL_SYNTHETIC_DOSSIERS } from './arc-verify-Priority-seeds';
+import { INITIAL_SYNTHETIC_DOSSIERS, INITIAL_SYNTHETIC_NOTIFICATIONS } from './arc-verify-Priority-seeds';
 
 export interface AuditEventRecord {
   id: string;
@@ -577,7 +577,7 @@ export class DatabaseService {
     }
 
     const caseCount = (this.db.prepare('SELECT COUNT(*) as cnt FROM cases').get() as any).cnt;
-    if (caseCount === 0) {
+    if (caseCount < 14) {
       this.seedSyntheticDossiers();
     }
   }
@@ -680,6 +680,26 @@ export class DatabaseService {
           entityId: ev.entityId,
           reason: ev.reasonOrSummary,
         });
+      }
+
+      for (const r of seeded.runs) {
+        const runFindings = seeded.findings.filter(f => f.runId === r.id);
+        this.saveProcessingRun(r, runFindings);
+      }
+
+      for (const dec of seeded.decisions) {
+        this.saveReviewDecision(dec);
+      }
+
+      const notifCount = (this.db.prepare('SELECT COUNT(*) as cnt FROM notifications').get() as any).cnt;
+      if (notifCount < 10 && Array.isArray(INITIAL_SYNTHETIC_NOTIFICATIONS)) {
+        const insertNotif = this.db.prepare(`
+          INSERT OR REPLACE INTO notifications (id, user_id, title, message, type, read, created_at, link)
+          VALUES (@id, @user_id, @title, @message, @type, @read, @created_at, @link)
+        `);
+        for (const n of INITIAL_SYNTHETIC_NOTIFICATIONS) {
+          insertNotif.run(n);
+        }
       }
     });
 

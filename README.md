@@ -158,12 +158,22 @@ The platform is pre-seeded with standardized accounts for demonstration:
 
 ## 7. Pre-Seeded Regulatory Demo Scenarios
 
-| Scenario | Case ID | Profile | Key Demonstration Highlights | Expected Outcome |
-| :--- | :--- | :--- | :--- | :--- |
-| **Scenario A — Fully Compliant Dossier** | `CASE-2026-001` | `AICTE_NEW_INSTITUTION` | All 6 mandatory annexures attached; exact cross-document concordance; `SIGNATURE_VALID`; 3.2 Acres Urban (>=2.5 Ac norm); 11,800 sq.m built-up. | `READY_FOR_OFFICER_REVIEW` |
-| **Scenario B — Deficient Dossier** | `CASE-2026-002` | `AICTE_NEW_INSTITUTION` | Missing Fire NOC & FDR; wrong catering invoice uploaded for Building Plan (`TC-03`); substantive name mismatch (`TC-05`); Rural land shortfall (4.8 < 7.5 Ac). | `NEEDS_INFORMATION` |
-| **Scenario C — Inconclusive Authenticity** | `CASE-2026-003` | `AICTE_NEW_INSTITUTION` | Fuzzy spelling variance ("Ganga Vally", `TC-06`); ELA score 24.8 > 18.0 (`TC-11`); low sharpness 38.5 < 45.0 (`TC-04`); consumer PDF producer warning. | `REVIEW_REQUIRED` (Never auto-rejected) |
-| **Scenario D — Annual EoA Renewal** | `CASE-2026-004` | `AICTE_EXTENSION_OF_APPROVAL` | Demonstrates profile-specific rules; marks initial land acquisition (`COMP-08`) as `NOT_APPLICABLE` (`TC-12`). | `READY_FOR_OFFICER_REVIEW` |
+| Scenario | Case ID | Application No | Profile | Key Demonstration Highlights | Expected Outcome |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **Scenario A — Fully Compliant Dossier** | `CASE-2026-001` | `APP-2026-001` | `AICTE_NEW_INSTITUTION` | Apex Institute; all 6 mandatory annexures; exact cross-document concordance; valid DSC token; 2.5 Ac Urban norm verified; 12,500 sq.m built-up. | `APPROVED` |
+| **Scenario B — Deficient Dossier** | `CASE-2026-002` | `APP-2026-002` | `AICTE_NEW_INSTITUTION` | Vanguard Academy; missing Fire NOC & FDR; title deed trust name mismatch; rural land deficit (1.2 Ac declared vs 4.0 Ac norm). | `NEEDS_INFORMATION` |
+| **Scenario C — Inconclusive Authenticity** | `CASE-2026-003` | `APP-2026-003` | `AICTE_NEW_INSTITUTION` | St. Peter Institute; orthographic name variation (0.82 fuzzy score); low resolution compression flag; requires officer manual triage. | `REVIEW_REQUIRED` |
+| **Scenario D — Annual EoA Renewal** | `CASE-2026-004` | `APP-2026-004` | `AICTE_EXTENSION_OF_APPROVAL` | Kaveri College of Pharmacy; initial land norm (`COMP-08`) marked `NOT_APPLICABLE`; annual compliance verified. | `APPROVED` |
+| **Scenario E — Women Concession** | `CASE-2026-005` | `APP-2026-005` | `AICTE_NEW_INSTITUTION` | Pragati Mahila Institute; concessional land norm 1.50 Ac (APH Clause 4.3); zero deficiencies; LoA recommended. | `APPROVED` |
+| **Scenario F — Expired Fire NOC** | `CASE-2026-006` | `APP-2026-006` | `AICTE_NEW_INSTITUTION` | Dr. A.P.J. Abdul Kalam Institute; Fire NOC expired on 31-05-2026; 15-day statutory rectification window opened. | `NEEDS_INFORMATION` |
+| **Scenario G — Hilly Zone Stability** | `CASE-2026-007` | `APP-2026-007` | `AICTE_NEW_INSTITUTION` | Himalayan Regional Institute; Hilly zone 1.0 Ac concessional norm; CPWD slope stability & USDMA clearance verified. | `UNDER_SCRUTINY` |
+| **Scenario H — Security Alert** | `CASE-2026-008` | `APP-2026-008` | `AICTE_NEW_INSTITUTION` | Kalinga Marine Academy; duplicate recycled FDR hash & untrusted DSC certificate root; escalated to Vigilance Cell. | `REJECTED` |
+| **Scenario I — High-Tech Urban Campus** | `CASE-2026-009` | `APP-2026-009` | `AICTE_NEW_INSTITUTION` | Symbiosis Institute of Advanced Tech & AI; Hinjewadi Phase 3; 3.10 Ac urban land; valid Class-3 DSC; SBI joint FDR Rs. 35L. | `UNDER_SCRUTINY` |
+| **Scenario J — Minority Concession** | `CASE-2026-010` | `APP-2026-010` | `AICTE_NEW_INSTITUTION` | Jaipur School of Heritage Design; NCMEI Linguistic Minority Certificate validated; concessional FDR Rs. 25L. | `READY_FOR_OFFICER_REVIEW` |
+| **Scenario K — CRZ Coastal Deficiency** | `CASE-2026-011` | `APP-2026-011` | `AICTE_NEW_PROGRAM_ADDITION`| Malabar Marine Institute, Kozhikode; provisional acknowledgement uploaded instead of sanctioned KCZMA CRZ-III NOC. | `DEFICIENCY_ISSUED` |
+| **Scenario L — Standalone Management EoA**| `CASE-2026-012` | `APP-2026-012` | `AICTE_EXTENSION_OF_APPROVAL` | Chanakya School of Management, Lucknow; PGDM 240 intake; Faculty-Student Ratio 1:15 satisfied with 16 regular faculty. | `APPROVED` |
+| **Scenario M — Tribal Sub-Plan Concession**| `CASE-2026-013` | `APP-2026-013` | `AICTE_NEW_INSTITUTION` | Birsa Munda Polytechnic, Khunti; CNT Act 99-year government lease (2.2 Ac); 50% state FDR subsidy under Schedule V. | `RECOMMENDED_FOR_APPROVAL` |
+| **Scenario N — Super Built-Up FAR & AAI** | `CASE-2026-014` | `APP-2026-014` | `AICTE_DIVISION_INCREASE` | Netaji Subhas Aerospace, Kolkata; 18,500 sqm FAR 2.5; 28.5m G+7 tower; Airports Authority of India airspace height cleared. | `UNDER_SCRUTINY` |
 
 ---
 
